@@ -1,0 +1,80 @@
+# ==========================================================
+# Konfigurasi Apache (.htaccess) - PT. Kreatif Global Solusindo (KGS)
+# Kompatibel: cPanel, CyberPanel, Shared Hosting (public_html / subfolder), XAMPP, Laragon
+# ==========================================================
+
+# Prioritaskan index.php sebagai halaman utama
+DirectoryIndex index.php index.html
+
+# Nonaktifkan Directory Listing
+Options -Indexes
+
+# Aktifkan FollowSymLinks
+Options +FollowSymLinks
+
+# Karakter Default UTF-8
+AddDefaultCharset UTF-8
+
+# Halaman Error 404 Kustom (menggunakan path relatif jika diizinkan, atau fallback)
+ErrorDocument 404 404.php
+
+# Blokir akses HTTP langsung ke file sensitif, SQL, Markdown, dan konfigurasi build
+<FilesMatch "^(\.env|\.env\.example|\.gitignore|database\.sql|INSTALL\.md|README\.md|package\.json|bun\.lock|tsconfig\.json|vite\.config\.ts|composer\.json|composer\.lock)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Blokir file backup / sql / log
+<FilesMatch "\.(sql|bak|old|swp|log|ini|sh)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Header Keamanan HTTP
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# URL Bersih & SEO-Friendly (tetap mendukung pemanggilan .php langsung jika mod_rewrite nonaktif)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Cegah akses langsung ke folder config/
+    RewriteRule ^config/ - [F,L]
+
+    # Lewati rewrite jika file atau direktori fisik benar-benar ada (CSS, JS, Gambar, Uploads, Admin)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Alias URL SEO-Friendly untuk 7 Menu Utama & Halaman Publik
+    RewriteRule ^beranda/?$ index.php [L,QSA]
+    RewriteRule ^tentang-kami/?$ tentang.php [L,QSA]
+    RewriteRule ^tentang/?$ tentang.php [L,QSA]
+    RewriteRule ^layanan/?$ layanan.php [L,QSA]
+    RewriteRule ^harga/?$ harga.php [L,QSA]
+    RewriteRule ^faq/?$ faq.php [L,QSA]
+    RewriteRule ^portofolio/?$ portofolio.php [L,QSA]
+    RewriteRule ^klien/?$ klien.php [L,QSA]
+    RewriteRule ^kontak/?$ kontak.php [L,QSA]
+    RewriteRule ^blog/?$ blog.php [L,QSA]
+    RewriteRule ^artikel/?$ blog.php [L,QSA]
+    RewriteRule ^kebijakan-privasi/?$ kebijakan-privasi.php [L,QSA]
+    RewriteRule ^sitemap\.xml$ sitemap.php [L,QSA]
+
+    # Fallback 404 untuk URL yang tidak ditemukan
+    RewriteRule ^ 404.php [L]
+</IfModule>

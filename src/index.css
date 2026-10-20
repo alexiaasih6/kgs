@@ -1,0 +1,389 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   KGS Corporate Design System — Responsive Typography, Spacing & Dark/Light Theme
+   ========================================================================== */
+
+:root {
+  --kgs-font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --kgs-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --kgs-bg-body: #f8fafc;
+  --kgs-bg-surface: #ffffff;
+  --kgs-bg-subtle: #f1f5f9;
+  --kgs-text-main: #0f172a;
+  --kgs-text-body: #1e293b;
+  --kgs-text-muted: #475569;
+  --kgs-border: #e2e8f0;
+  color-scheme: light;
+}
+
+html.dark,
+html[data-theme="dark"] {
+  --kgs-bg-body: #0b1120;
+  --kgs-bg-surface: #111827;
+  --kgs-bg-subtle: #1e293b;
+  --kgs-text-main: #f8fafc;
+  --kgs-text-body: #e2e8f0;
+  --kgs-text-muted: #94a3b8;
+  --kgs-border: #1e293b;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--kgs-font-sans);
+  line-height: 1.65;
+  color: var(--kgs-text-body);
+  background-color: var(--kgs-bg-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* --------------------------------------------------------------------------
+   1. Minimum Font Size Floor (14px minimum for all auxiliary/caption text)
+   -------------------------------------------------------------------------- */
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\],
+.text-\[12px\],
+.text-\[13px\],
+.text-xs {
+  font-size: 0.875rem !important; /* 14px minimum */
+  line-height: 1.55 !important;
+}
+
+.text-sm {
+  font-size: 1rem !important; /* 16px */
+  line-height: 1.625 !important;
+}
+
+.text-base {
+  font-size: 1.0625rem !important; /* 17px */
+  line-height: 1.68 !important;
+}
+
+/* --------------------------------------------------------------------------
+   2. Semantic Typography Scale (Public Website & Modals)
+   - Main Title (h1): 32–40px Mobile | 40–56px Desktop
+   - Section Title (h2): 25–32px Mobile | 28–40px Desktop
+   - Card Title (h3, h4): 18–22px Mobile | 20–24px Desktop
+   - Paragraph (p): 16–18px Mobile | 17–19px Desktop
+   - Navigation & Buttons: 16–18px
+   - Form Labels & Controls: 16–17px
+   -------------------------------------------------------------------------- */
+.website-public-root h1 {
+  font-size: clamp(2rem, 3.6vw + 0.5rem, 3.25rem) !important; /* 32px -> 52px */
+  line-height: 1.18 !important;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+
+.website-public-root main h2 {
+  font-size: clamp(1.625rem, 2.4vw + 0.5rem, 2.375rem) !important; /* 26px -> 38px */
+  line-height: 1.24 !important;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+}
+
+.website-public-root main h3 {
+  font-size: clamp(1.1875rem, 1.2vw + 0.65rem, 1.4375rem) !important; /* 19px -> 23px */
+  line-height: 1.36 !important;
+  overflow-wrap: break-word;
+}
+
+.website-public-root main h4 {
+  font-size: clamp(1.125rem, 1vw + 0.65rem, 1.3125rem) !important; /* 18px -> 21px */
+  line-height: 1.4 !important;
+  overflow-wrap: break-word;
+}
+
+.website-public-root main p {
+  font-size: 1.03125rem !important; /* 16.5px on mobile */
+  line-height: 1.72 !important;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 768px) {
+  .website-public-root main p {
+    font-size: 1.09375rem !important; /* 17.5px on desktop (within 17–19px) */
+    line-height: 1.75 !important;
+  }
+}
+
+/* Navigation Links (16–18px) */
+.website-public-root header nav a,
+.website-public-root footer ul a {
+  font-size: 1rem !important; /* 16px */
+  line-height: 1.5 !important;
+}
+
+@media (min-width: 1280px) {
+  .website-public-root header nav a {
+    font-size: 1.03125rem !important; /* 16.5px */
+  }
+}
+
+/* Buttons & CTAs (16–18px) */
+.website-public-root header button,
+.website-public-root main button,
+.website-public-root main a.inline-flex,
+.website-public-root main a.flex {
+  font-size: 1rem !important; /* 16px */
+  line-height: 1.45 !important;
+}
+
+/* Form Labels & Inputs (16–17px) */
+label {
+  font-size: 1rem !important; /* 16px */
+  line-height: 1.5 !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]),
+select,
+textarea {
+  font-size: 1rem !important; /* 16px */
+  line-height: 1.5 !important;
+}
+
+/* Prevent accidental truncation of titles or descriptions */
+.website-public-root main .line-clamp-1,
+.website-public-root main .line-clamp-2,
+.website-public-root main .line-clamp-3 {
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  overflow: visible !important;
+}
+
+/* Ensure tables scroll cleanly on mobile without breaking viewport width */
+.table-responsive-wrap,
+table {
+  max-width: 100%;
+}
+
+th {
+  font-size: 0.9375rem !important; /* 15px */
+  line-height: 1.45 !important;
+}
+
+td {
+  font-size: 0.96875rem !important; /* 15.5px */
+  line-height: 1.55 !important;
+}
+
+/* Focus visibility & accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   3. Complete Dark Mode Theme Overrides (Public Website & Admin CMS)
+   Ensures high contrast, legible text, and consistent dark surfaces across
+   every section, card, modal, form input, badge, and Admin CMS table.
+   ========================================================================== */
+html.dark body {
+  background-color: #0b1120 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Surfaces & Section Backgrounds */
+html.dark .bg-white,
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/80 {
+  background-color: #111827 !important;
+  color: #f1f5f9;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-50\/60,
+html.dark .bg-slate-50\/70,
+html.dark .bg-slate-50\/80 {
+  background-color: #0b1120 !important;
+  color: #e2e8f0;
+}
+
+html.dark .bg-slate-100,
+html.dark .bg-slate-100\/80,
+html.dark .bg-slate-200\/60 {
+  background-color: #1e293b !important;
+  color: #f1f5f9;
+}
+
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-200:hover {
+  background-color: #1e293b !important;
+}
+
+/* Tinted Callout & Badge Surfaces in Dark Mode */
+html.dark .bg-blue-50,
+html.dark .bg-blue-50\/30,
+html.dark .bg-blue-50\/40,
+html.dark .bg-blue-50\/50,
+html.dark .bg-blue-50\/60,
+html.dark .bg-blue-50\/70,
+html.dark .bg-blue-100\/60 {
+  background-color: rgba(30, 58, 138, 0.28) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+html.dark .bg-blue-100 {
+  background-color: rgba(37, 99, 235, 0.25) !important;
+  color: #93c5fd !important;
+}
+
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-50\/40,
+html.dark .bg-emerald-50\/50,
+html.dark .bg-emerald-50\/60 {
+  background-color: rgba(6, 78, 59, 0.28) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+html.dark .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.22) !important;
+  color: #6ee7b7 !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .bg-amber-50\/50,
+html.dark .bg-amber-50\/60 {
+  background-color: rgba(120, 53, 15, 0.28) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+html.dark .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.22) !important;
+  color: #fcd34d !important;
+}
+
+html.dark .bg-rose-50,
+html.dark .bg-rose-50\/50 {
+  background-color: rgba(136, 19, 55, 0.28) !important;
+  border-color: rgba(244, 63, 94, 0.35) !important;
+}
+
+html.dark .bg-rose-100 {
+  background-color: rgba(244, 63, 94, 0.22) !important;
+  color: #fda4af !important;
+}
+
+/* Text Colors in Dark Mode */
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+/* Preserve dark text on explicitly bright solid badges like bg-emerald-500 or bg-amber-400 */
+html.dark .bg-emerald-500.text-slate-950,
+html.dark .bg-amber-400.text-slate-950,
+html.dark .bg-amber-500.text-slate-950 {
+  color: #020617 !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-blue-950,
+html.dark .text-blue-900,
+html.dark .text-blue-800,
+html.dark .text-blue-700 {
+  color: #93c5fd !important;
+}
+
+html.dark .text-blue-600 {
+  color: #60a5fa !important;
+}
+
+html.dark .text-emerald-950,
+html.dark .text-emerald-900,
+html.dark .text-emerald-800,
+html.dark .text-emerald-700 {
+  color: #6ee7b7 !important;
+}
+
+html.dark .text-amber-900,
+html.dark .text-amber-800,
+html.dark .text-amber-700 {
+  color: #fcd34d !important;
+}
+
+html.dark .text-rose-800,
+html.dark .text-rose-700 {
+  color: #fda4af !important;
+}
+
+/* Borders & Dividers in Dark Mode */
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-200\/80,
+html.dark .border-slate-300 {
+  border-color: #1e293b !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+/* Form Inputs, Selects & Textareas in Dark Mode */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]),
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #3b82f6 !important;
+}
+
+/* Scrollbar in Dark Mode */
+html.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

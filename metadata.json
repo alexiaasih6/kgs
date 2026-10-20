@@ -1,0 +1,8 @@
+{
+  "name": "PT Kreatif Global Solusindo - Portal & CMS",
+  "description": "Portal website resmi PT Kreatif Global Solusindo (System Integrator, Security Solution & ISP) berbasis data terverifikasi PDF Company Profile, dilengkapi Admin Backend CMS dan paket deployment PHP Native + MySQL.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

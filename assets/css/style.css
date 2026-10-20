@@ -1,0 +1,299 @@
+/**
+ * Custom Stylesheet — PT. Kreatif Global Solusindo (KGS)
+ * Responsive Design System + Full Dark Mode & Light Mode Support
+ */
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-primary: #1d4ed8;
+  --color-primary-hover: #1e40af;
+  --color-secondary: #0f172a;
+  --color-accent: #10b981;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-body: #334155;
+  --border-main: #e2e8f0;
+  color-scheme: light;
+}
+
+html.dark,
+html[data-theme="dark"] {
+  --bg-page: #020617;
+  --bg-card: #0f172a;
+  --text-main: #f8fafc;
+  --text-body: #cbd5e1;
+  --border-main: #1e293b;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.65;
+  color: var(--text-body);
+  background-color: var(--bg-page);
+  overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+img,
+svg,
+video,
+iframe {
+  max-width: 100%;
+}
+
+/* ==========================================================================
+   Dark Mode Global Surface & Text Overrides for PHP Native + Admin CMS
+   ========================================================================== */
+html.dark body {
+  background-color: #020617 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark section.bg-white,
+html.dark section.bg-slate-50,
+html.dark section.bg-slate-100,
+html.dark main.bg-slate-50,
+html.dark main.bg-white {
+  background-color: #0b1120 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark div.bg-white,
+html.dark article.bg-white,
+html.dark form.bg-white,
+html.dark aside.bg-white,
+html.dark header.bg-white,
+html.dark header.bg-white\/95,
+html.dark table.bg-white,
+html.dark tbody.bg-white {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #1e293b !important;
+}
+
+html.dark div.bg-slate-50,
+html.dark div.bg-slate-50\/80,
+html.dark div.bg-slate-100,
+html.dark thead.bg-slate-50,
+html.dark thead.bg-slate-100,
+html.dark tr.hover\:bg-slate-50:hover {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+html.dark textarea,
+html.dark select {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Active state for Theme Switcher Buttons */
+.kgs-theme-btn.is-active {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   2. Responsive Typography Hierarchy
+   ========================================================================== */
+
+main section h1 {
+  font-size: clamp(2rem, 4vw + 0.75rem, 3.25rem) !important;
+  line-height: 1.16 !important;
+  letter-spacing: -0.025em;
+  font-weight: 800;
+}
+
+main section h2 {
+  font-size: clamp(1.65rem, 2.5vw + 0.6rem, 2.45rem) !important;
+  line-height: 1.24 !important;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+
+main section h3 {
+  font-size: clamp(1.15rem, 1.1vw + 0.85rem, 1.45rem) !important;
+  line-height: 1.35 !important;
+  font-weight: 700;
+}
+
+main section h4 {
+  font-size: clamp(1.05rem, 0.75vw + 0.85rem, 1.25rem) !important;
+  line-height: 1.4 !important;
+  font-weight: 700;
+}
+
+main section p {
+  font-size: clamp(1rem, 0.35vw + 0.92rem, 1.125rem);
+  line-height: 1.72;
+}
+
+header nav a {
+  font-size: 1rem !important;
+  line-height: 1.5;
+}
+
+#mobile-menu a {
+  font-size: 1.0625rem !important;
+}
+
+main section label {
+  font-size: 1rem !important;
+  line-height: 1.45;
+}
+
+main section input:not([type="checkbox"]):not([type="radio"]),
+main section select,
+main section textarea {
+  font-size: 1rem !important;
+  line-height: 1.5;
+}
+
+main section .text-\[10px\],
+main section .text-\[11px\],
+footer .text-\[10px\],
+footer .text-\[11px\] {
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+}
+
+main section .text-xs,
+footer .text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.55 !important;
+}
+
+main section .text-sm,
+footer .text-sm {
+  font-size: 1rem !important;
+  line-height: 1.65 !important;
+}
+
+/* ==========================================================================
+   3. Section Spacing, Cards & Interactive States
+   ========================================================================== */
+main > section {
+  padding-top: clamp(3.5rem, 6vw, 5.75rem);
+  padding-bottom: clamp(3.5rem, 6vw, 5.75rem);
+}
+
+main section .rounded-2xl,
+main section .rounded-3xl {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   4. Rich Content Formatting (.prose-kgs)
+   ========================================================================== */
+.prose-kgs h2 {
+  font-size: clamp(1.375rem, 2vw + 0.5rem, 1.75rem);
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 2rem;
+  margin-bottom: 0.875rem;
+  line-height: 1.3;
+}
+
+.prose-kgs h3 {
+  font-size: clamp(1.15rem, 1.5vw + 0.5rem, 1.375rem);
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 1.6rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.35;
+}
+
+.prose-kgs p {
+  margin-bottom: 1.25rem;
+  color: var(--text-body);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.prose-kgs ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+  color: var(--text-body);
+}
+
+.prose-kgs li {
+  margin-bottom: 0.5rem;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+/* ==========================================================================
+   5. Responsive Tables & Scrollbars
+   ========================================================================== */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
