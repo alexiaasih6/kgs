@@ -1,17 +1,14 @@
 <?php
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/csrf.php';
 
-$_SESSION = [];
-
-if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
-    );
+if (!empty($_SESSION['admin_logged_in'])) {
+    $uname = (string)($_SESSION['admin_username'] ?? 'admin');
+    log_audit($pdo, 'Logout Admin', "User '$uname' keluar dari sesi Admin CMS.");
 }
 
-session_destroy();
+logout_admin();
 
 header("Location: login.php");
 exit;
+

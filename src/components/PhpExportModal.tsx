@@ -135,27 +135,15 @@ export const PhpExportModal: React.FC<PhpExportModalProps> = ({
         if (res.ok) {
           const buf = await res.arrayBuffer();
           zip = await JSZip.loadAsync(buf);
-        } else {
-          Object.entries(effectivePhpFiles).forEach(([filePath, content]) => {
-            zip.file(filePath, content);
-          });
         }
       } catch {
-        Object.entries(effectivePhpFiles).forEach(([filePath, content]) => {
-          zip.file(filePath, content);
-        });
+        // Fallback to building purely from effectivePhpFiles
       }
 
-      // Always inject the latest Live Edit & Admin CMS state into the ZIP package
-      if (effectivePhpFiles['database.sql']) {
-        zip.file('database.sql', effectivePhpFiles['database.sql']);
-      }
-      if (effectivePhpFiles['config/live-preview-state.json']) {
-        zip.file('config/live-preview-state.json', effectivePhpFiles['config/live-preview-state.json']);
-      }
-      if (effectivePhpFiles['config/live-overrides.json']) {
-        zip.file('config/live-overrides.json', effectivePhpFiles['config/live-overrides.json']);
-      }
+      // Always write all latest PHP source files, database.sql, and live-preview-state.json into the ZIP package
+      Object.entries(effectivePhpFiles).forEach(([filePath, content]) => {
+        zip.file(filePath, content);
+      });
 
       const blob = await zip.generateAsync({
         type: 'blob',

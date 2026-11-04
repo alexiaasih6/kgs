@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/database.php';
 $blog_page = get_page_by_slug($pdo, 'blog');
 $page_title = !empty($blog_page['meta_title']) ? $blog_page['meta_title'] : ($blog_page['title'] ?? 'Artikel & Wawasan Teknologi');
@@ -41,16 +42,16 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
 <div class="bg-gradient-to-b from-slate-900 to-blue-950 text-white py-16">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="max-w-3xl space-y-4">
-            <span class="px-3 py-1 bg-blue-500/30 text-blue-300 text-xs font-bold rounded-full border border-blue-400/30 uppercase tracking-wider">
-                Edukasi & Artikel Industri
+            <span class="px-3 py-1 bg-blue-500/30 text-blue-300 text-xs font-bold rounded-full border border-blue-400/30 uppercase tracking-wider" data-live-setting="blog_kicker">
+                <?= e(get_setting($pdo, 'blog_kicker', 'Edukasi & Artikel Industri')) ?>
             </span>
-            <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight"><?= e($blog_page['title'] ?: 'Wawasan Teknologi & Panduan Solusi IT') ?></h1>
-            <p class="text-slate-300 text-sm leading-relaxed">
+            <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight" data-live-page-slug="blog" data-live-page-field="title"><?= e($blog_page['title'] ?: 'Wawasan Teknologi & Panduan Solusi IT') ?></h1>
+            <p class="text-slate-300 text-sm leading-relaxed" data-live-page-slug="blog" data-live-page-field="summary">
                 <?= e($blog_page['summary'] ?: 'Kumpulan artikel teknis, tips implementasi jaringan fiber optik, standar proteksi petir kelistrikan industri, telekomunikasi lapangan, dan solusi sistem integrator dari praktisi berpengalaman PT. KGS.') ?>
             </p>
             <?php if (!empty($blog_page['content'])): ?>
-                <div class="text-xs sm:text-sm text-slate-300/90 leading-relaxed prose prose-invert">
-                    <?= $blog_page['content'] ?>
+                <div class="text-xs sm:text-sm text-slate-300/90 leading-relaxed prose prose-invert" data-live-page-slug="blog" data-live-page-field="content">
+                    <?= sanitize_rich_html($blog_page['content']) ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -105,7 +106,7 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
                 <div>
                     <?php if (!empty($p['featured_image'])): ?>
                         <a href="detail-blog.php?slug=<?= e($p['slug']) ?>" class="block h-44 bg-slate-100 overflow-hidden border-b border-slate-100">
-                            <img src="<?= e($p['featured_image']) ?>" alt="<?= e($p['alt_image'] ?: $p['title']) ?>" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            <img src="<?= e($p['featured_image']) ?>" alt="<?= e($p['alt_image'] ?: $p['title']) ?>" data-live-img="post_image:<?= (int)$p['id'] ?>" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
                         </a>
                     <?php endif; ?>
                     <div class="p-6 space-y-3">
@@ -119,12 +120,12 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
                         </div>
 
                         <h2 class="text-base font-extrabold text-slate-900 group-hover:text-blue-600 transition leading-snug">
-                            <a href="detail-blog.php?slug=<?= e($p['slug']) ?>">
+                            <a href="detail-blog.php?slug=<?= e($p['slug']) ?>" data-live-record="posts:<?= (int)$p['id'] ?>:title">
                                 <?= e($p['title']) ?>
                             </a>
                         </h2>
 
-                        <p class="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                        <p class="text-xs text-slate-600 leading-relaxed line-clamp-3" data-live-record="posts:<?= (int)$p['id'] ?>:summary">
                             <?= e($p['summary']) ?>
                         </p>
 
@@ -142,7 +143,7 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
 
                 <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span class="text-slate-500 text-[11px]">
-                        Oleh <strong><?= e($p['author'] ?: 'Tim Teknis PT. KGS') ?></strong>
+                        Oleh <strong data-live-record="posts:<?= (int)$p['id'] ?>:author"><?= e($p['author'] ?: 'Tim Teknis PT. KGS') ?></strong>
                     </span>
                     <a href="detail-blog.php?slug=<?= e($p['slug']) ?>" class="font-bold text-blue-600 hover:text-blue-800 transition">
                         Baca Selengkapnya &rarr;

@@ -81,33 +81,62 @@ export const ClientsSection: React.FC = () => {
         </div>
 
         {/* Clients Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map((client) => (
-            <div
-              key={client.id}
-              className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
-                  <span className="font-medium text-blue-600">{client.serviceCategory}</span>
-                  <span className="text-emerald-600 font-medium">✓ Terverifikasi</span>
-                </div>
-                <h4 className="text-sm font-bold text-slate-900 leading-snug">
-                  {client.name}
-                </h4>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredClients.map((client) => {
+            const clientImg = client.imageUrl || client.logoUrl;
+            const cleanName = client.name
+              .replace(/^(PT\.|CV\.|RS\.|RSUD|BANK|PERUMDA)\s*/i, '')
+              .trim();
+            const words = cleanName.split(/\s+/);
+            const monogram = (
+              (words[0]?.[0] || 'K') + (words[1]?.[0] || words[0]?.[1] || 'G')
+            ).toUpperCase();
 
-              <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
-                <span className="text-[11px] text-slate-600">{client.category}</span>
-                {client.location && (
-                  <span className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <MapPin className="w-3 h-3 text-slate-400" />
-                    <span>{client.location}</span>
-                  </span>
+            return (
+              <div
+                key={client.id}
+                className="group rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all overflow-hidden flex flex-col justify-between"
+              >
+                {clientImg && (
+                  <div className="relative h-40 w-full bg-slate-100 border-b border-slate-100 flex items-center justify-center p-4">
+                    <img
+                      src={clientImg}
+                      alt={client.name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
                 )}
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                  <div className="flex items-start gap-3">
+                    {!clientImg && (
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-slate-900 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                        {monogram}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                        <span className="font-bold text-blue-600 truncate">{client.serviceCategory}</span>
+                        <span className="text-emerald-600 font-bold shrink-0">✓ Terverifikasi</span>
+                      </div>
+                      <h4 className="text-sm font-extrabold text-slate-900 leading-snug">
+                        {client.name}
+                      </h4>
+                    </div>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span className="text-[11px] font-semibold text-slate-600">{client.category}</span>
+                    {client.location && (
+                      <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                        <MapPin className="w-3 h-3 text-blue-500" />
+                        <span>{client.location}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {filteredClients.length === 0 && (

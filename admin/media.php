@@ -53,7 +53,7 @@ try {
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
     <div>
         <h1 class="text-xl font-bold text-slate-900">Media Manager & Pustaka Gambar</h1>
-        <p class="text-xs text-slate-500">Unggah gambar (JPG, PNG, WEBP, SVG, ICO maks. 2 MB) untuk digunakan pada halaman, artikel, layanan, atau portofolio.</p>
+        <p class="text-xs text-slate-500">Unggah gambar (JPG, PNG, WEBP, GIF, ICO maks. 2 MB) untuk digunakan pada halaman, artikel, layanan, atau portofolio.</p>
     </div>
 </div>
 
@@ -75,8 +75,8 @@ try {
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="upload">
         <div class="flex-1 w-full">
-            <label class="block font-bold text-slate-800 mb-1.5">Pilih Berkas Gambar Baru (Maks. 2 MB — JPG, PNG, WEBP, SVG, ICO)</label>
-            <input type="file" name="media_file" required accept=".jpg,.jpeg,.png,.webp,.svg,.ico" class="w-full border border-slate-300 rounded-xl p-2 bg-slate-50 text-slate-700">
+            <label class="block font-bold text-slate-800 mb-1.5">Pilih Berkas Gambar Baru (Maks. 2 MB — JPG, PNG, WEBP, GIF, ICO)</label>
+            <input type="file" name="media_file" required accept=".jpg,.jpeg,.png,.webp,.gif,.ico" class="w-full border border-slate-300 rounded-xl p-2 bg-slate-50 text-slate-700">
         </div>
         <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition cursor-pointer shrink-0">
             Unggah ke Server

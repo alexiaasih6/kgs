@@ -35,7 +35,13 @@ import {
   PricingPlanItem,
   B2B_PRICING_PLANS,
   FaqItem,
-  FAQ_DATA
+  FAQ_DATA,
+  SlideshowCategoryItem,
+  INITIAL_SLIDESHOW_CATEGORIES,
+  PromoItem,
+  INITIAL_PROMOS,
+  TestimonialItem,
+  INITIAL_TESTIMONIALS
 } from './data/companyData';
 import {
   ColorMode,
@@ -45,13 +51,19 @@ import {
   syncLiveStateToServer,
   ExportStatePayload
 } from './utils/exportSync';
-import { Navbar } from './components/Navbar';
+import { Navbar, normalizeMenuItemUrl } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { AboutSection } from './components/AboutSection';
 import { ServicesSection } from './components/ServicesSection';
+import { SlideshowSection } from './components/SlideshowSection';
 import { PricingSection } from './components/PricingSection';
 import { FaqSection } from './components/FaqSection';
 import { PortfolioSection } from './components/PortfolioSection';
+import {
+  PromoSection,
+  KemitraanSection,
+  TestimoniSection
+} from './components/PromoPartnersTestimonials';
 import { ArticlesSection } from './components/ArticlesSection';
 import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
@@ -77,15 +89,44 @@ export default function App() {
     setIsDarkMode(resolvedDark);
   };
 
-  // Load initial state with localStorage persistence
+  // Load initial state with localStorage persistence & content version migration
   const [services, setServices] = useState<ServiceItem[]>(() => {
     const saved = localStorage.getItem('kgs_services');
-    return saved ? JSON.parse(saved) : SERVICES_DATA;
+    if (saved) {
+      try {
+        const parsed: ServiceItem[] = JSON.parse(saved);
+        const hasSevenBidangServices =
+          parsed.some(s => s.categoryId === 'cat_networking') &&
+          parsed.some(s => s.categoryId === 'cat_radio') &&
+          parsed.some(s => s.categoryId === 'cat_pabx') &&
+          parsed.some(s => s.categoryId === 'cat_access');
+        if (!hasSevenBidangServices) return SERVICES_DATA;
+        return parsed;
+      } catch {
+        return SERVICES_DATA;
+      }
+    }
+    return SERVICES_DATA;
   });
 
   const [categories, setCategories] = useState<ServiceCategory[]>(() => {
     const saved = localStorage.getItem('kgs_categories');
-    return saved ? JSON.parse(saved) : SERVICE_CATEGORIES;
+    if (saved) {
+      try {
+        const parsed: ServiceCategory[] = JSON.parse(saved);
+        const hasSevenBidang =
+          parsed.length === 7 &&
+          parsed.some(c => c.id === 'cat_networking') &&
+          parsed.some(c => c.id === 'cat_radio') &&
+          parsed.some(c => c.id === 'cat_pabx') &&
+          parsed.some(c => c.id === 'cat_access');
+        if (!hasSevenBidang) return SERVICE_CATEGORIES;
+        return parsed;
+      } catch {
+        return SERVICE_CATEGORIES;
+      }
+    }
+    return SERVICE_CATEGORIES;
   });
 
   const [clients, setClients] = useState<ClientItem[]>(() => {
@@ -95,7 +136,37 @@ export default function App() {
 
   const [projects, setProjects] = useState<ProjectPhoto[]>(() => {
     const saved = localStorage.getItem('kgs_projects');
-    return saved ? JSON.parse(saved) : PROJECT_DOCUMENTARY;
+    if (saved) {
+      try {
+        const parsed: ProjectPhoto[] = JSON.parse(saved);
+        const hasSevenBidangProjects =
+          parsed.some(p => p.category === 'Data Networking') &&
+          parsed.some(p => p.category.includes('Radio Komunikasi')) &&
+          parsed.some(p => p.category === 'Access Door');
+        if (!hasSevenBidangProjects) return PROJECT_DOCUMENTARY;
+        const defaultMap = new Map(PROJECT_DOCUMENTARY.map(d => [d.id, d]));
+        return parsed.map(p => {
+          const def = defaultMap.get(p.id);
+          if (!p.images || p.images.length === 0) {
+            return {
+              ...p,
+              imageUrl: p.imageUrl || def?.imageUrl,
+              images: def?.images || (p.imageUrl ? [{
+                id: `${p.id}-img-1`,
+                imageUrl: p.imageUrl,
+                caption: p.title,
+                sortOrder: 1,
+                isPrimary: true
+              }] : [])
+            };
+          }
+          return p;
+        });
+      } catch {
+        return PROJECT_DOCUMENTARY;
+      }
+    }
+    return PROJECT_DOCUMENTARY;
   });
 
   const [articles, setArticles] = useState<ArticleItem[]>(() => {
@@ -107,18 +178,22 @@ export default function App() {
     const saved = localStorage.getItem('kgs_pages');
     if (saved) {
       try {
-        const parsed: StaticPageItem[] = JSON.parse(saved).map((p: StaticPageItem) => {
-          if (p.slug === 'kontak' && p.content && (p.content.includes('Kantor Perwakilan Jakarta') || p.content.includes('Kantor Pusat Palembang'))) {
-            return {
-              ...p,
-              content: 'Alamat Kantor (Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113) siap melayani konsultasi teknis, survei lokasi, dan pengajuan penawaran resmi.'
-            };
+        const parsed: StaticPageItem[] = JSON.parse(saved);
+        const hasUpdatedProfile = parsed.some(
+          p => p.slug === 'tentang-kami' && p.summary.includes('Creative Com, dengan badan usaha CV. Creative berkantor di Palembang')
+        );
+        if (!hasUpdatedProfile) return INITIAL_PAGES;
+        const normalized = parsed.map(p => ({
+          ...p,
+          content: p.content ? p.content.replace(/info@kgs\.net\.id/g, 'info@creative.co.id') : p.content
+        }));
+        const existingSlugs = new Set(normalized.map(p => p.slug));
+        for (const defPage of INITIAL_PAGES) {
+          if (!existingSlugs.has(defPage.slug)) {
+            normalized.push(defPage);
           }
-          return p;
-        });
-        const existingSlugs = new Set(parsed.map(p => p.slug));
-        const missingDefaults = INITIAL_PAGES.filter(p => !existingSlugs.has(p.slug));
-        return [...parsed, ...missingDefaults];
+        }
+        return normalized;
       } catch {
         return INITIAL_PAGES;
       }
@@ -148,11 +223,53 @@ export default function App() {
         const parsed = JSON.parse(saved);
         const merged: CompanySettings = { ...DEFAULT_COMPANY_SETTINGS, ...parsed };
         if (
+          !merged.legalName ||
+          merged.legalName.toLowerCase().includes('creatve') ||
+          merged.legalName.toLowerCase() === 'creative.co.id'
+        ) {
+          merged.legalName = 'PT. KREATIF GLOBAL SOLUSINDO';
+        }
+        if (
           !merged.footerBrandLabel ||
           merged.footerBrandLabel.toUpperCase() === 'PT. KGS' ||
           merged.footerBrandLabel.toUpperCase() === 'KGS'
         ) {
           merged.footerBrandLabel = 'KGSNET';
+        }
+        if (!merged.slogan || merged.slogan === 'Your Solution & Partner') {
+          merged.slogan = 'System Integrator, Security Solution & Internet Provider';
+        }
+        if (!merged.logoBgColor) {
+          merged.logoBgColor = DEFAULT_COMPANY_SETTINGS.logoBgColor || '#2563eb';
+        }
+        if (!merged.logoTextColor) {
+          merged.logoTextColor = DEFAULT_COMPANY_SETTINGS.logoTextColor || '#ffffff';
+        }
+        if (!merged.companyNameColor) {
+          merged.companyNameColor = DEFAULT_COMPANY_SETTINGS.companyNameColor || '#0f172a';
+        }
+        if (!merged.sloganColor) {
+          merged.sloganColor = DEFAULT_COMPANY_SETTINGS.sloganColor || '#2563eb';
+        }
+        // Always ensure Vision, Mission, Culture, Commitment & Hero CTA reflect the latest official text
+        if (!merged.vision || !merged.vision.includes('semangat kewirausahaan yang tinggi')) {
+          merged.vision = DEFAULT_COMPANY_SETTINGS.vision;
+          merged.mission = DEFAULT_COMPANY_SETTINGS.mission;
+        }
+        if (!merged.culture || !merged.culture.includes('Tujuan tim meningkatkan produktifitas dan hasil maksimal kepada pelanggan')) {
+          merged.culture = DEFAULT_COMPANY_SETTINGS.culture;
+        }
+        if (!merged.commitment) {
+          merged.commitment = DEFAULT_COMPANY_SETTINGS.commitment;
+        }
+        if (merged.heroCtaTertiary === '5 Segmen Layanan →') {
+          merged.heroCtaTertiary = 'Product & Service →';
+        }
+        if (!merged.email || merged.email === 'info@kgs.net.id') {
+          merged.email = 'info@creative.co.id';
+        }
+        if (merged.phonePalembang) {
+          merged.phonePalembang = merged.phonePalembang.replace(/\s*\(Hunting\)/gi, '').trim();
         }
         delete merged.addressJakarta;
         return merged;
@@ -165,7 +282,46 @@ export default function App() {
 
   const [navigationMenus, setNavigationMenus] = useState<NavigationMenuItem[]>(() => {
     const saved = localStorage.getItem('kgs_navigation_menus');
-    return saved ? JSON.parse(saved) : INITIAL_NAVIGATION_MENUS;
+    if (saved) {
+      try {
+        const parsed: NavigationMenuItem[] = JSON.parse(saved);
+        const headerItems = parsed
+          .filter(m => m.location !== 'footer')
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        // Check if header already matches the 7-item order: Beranda, Produk & Layanan, Promo, Client / Pelanggan, Kemitraan, Testimoni, Hubungi Kami
+        const hasUpdated7HeaderMenus =
+          headerItems.some(m => m.title === 'Produk & Layanan') &&
+          headerItems.some(m => m.title === 'Promo') &&
+          headerItems.some(m => m.title === 'Client / Pelanggan') &&
+          headerItems.some(m => m.title === 'Kemitraan') &&
+          headerItems.some(m => m.title === 'Testimoni') &&
+          headerItems.some(m => m.title === 'Hubungi Kami');
+
+        if (!hasUpdated7HeaderMenus) {
+          const footerItems = parsed.filter(m => m.location === 'footer');
+          const defaultHeaderItems = INITIAL_NAVIGATION_MENUS.filter(m => m.location === 'header');
+          const defaultFooterItems = INITIAL_NAVIGATION_MENUS.filter(m => m.location === 'footer');
+          return [
+            ...defaultHeaderItems,
+            ...(footerItems.length > 0 ? footerItems : defaultFooterItems)
+          ];
+        }
+
+        return parsed.map(rawItem => {
+          const cleanTitle = (rawItem.title || '').trim();
+          const loc = rawItem.location === 'footer' ? 'footer' : 'header';
+          return {
+            ...rawItem,
+            title: cleanTitle,
+            url: normalizeMenuItemUrl(cleanTitle, rawItem.url),
+            location: loc
+          };
+        });
+      } catch {
+        return INITIAL_NAVIGATION_MENUS;
+      }
+    }
+    return INITIAL_NAVIGATION_MENUS;
   });
 
   const [themeConfig, setThemeConfig] = useState<WebsiteThemeConfig>(() => {
@@ -175,14 +331,49 @@ export default function App() {
 
   const [sliderConfig, setSliderConfig] = useState<HeroSliderConfig>(() => {
     const saved = localStorage.getItem('kgs_slider_config');
-    return saved
-      ? { ...INITIAL_HERO_SLIDER_CONFIG, ...JSON.parse(saved) }
-      : INITIAL_HERO_SLIDER_CONFIG;
+    if (saved) {
+      try {
+        const parsed: HeroSliderConfig = JSON.parse(saved);
+        const hasLegacyThreeSlides =
+          !Array.isArray(parsed.slides) ||
+          parsed.slides.length <= 3 ||
+          parsed.slides.some(
+            s => s.id === 'slide-1' || s.title === 'Backbone Fiber Optic & Data Center KGSNet'
+          );
+        if (hasLegacyThreeSlides) {
+          return {
+            ...INITIAL_HERO_SLIDER_CONFIG,
+            ...parsed,
+            slides: INITIAL_HERO_SLIDER_CONFIG.slides
+          };
+        }
+        const normalizedSlides = parsed.slides.map(s => ({
+          ...s,
+          imageUrl: (s.imageUrl || '').replace(
+            'photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&q=80',
+            'photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80'
+          )
+        }));
+        return { ...INITIAL_HERO_SLIDER_CONFIG, ...parsed, slides: normalizedSlides };
+      } catch {
+        return INITIAL_HERO_SLIDER_CONFIG;
+      }
+    }
+    return INITIAL_HERO_SLIDER_CONFIG;
   });
 
   const [inlineOverrides, setInlineOverrides] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem('kgs_inline_overrides');
-    return saved ? JSON.parse(saved) : {};
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        delete parsed.txt_SPAN_Creatve_co_id;
+        return parsed;
+      } catch {
+        return {};
+      }
+    }
+    return {};
   });
 
   const [timeline, setTimeline] = useState<TimelineMilestoneItem[]>(() => {
@@ -200,28 +391,107 @@ export default function App() {
     return saved ? JSON.parse(saved) : VERIFIED_PARTNERS;
   });
 
+  const [promos, setPromos] = useState<PromoItem[]>(() => {
+    const saved = localStorage.getItem('kgs_promos');
+    return saved ? JSON.parse(saved) : INITIAL_PROMOS;
+  });
+
+  const [testimonials, setTestimonials] = useState<TestimonialItem[]>(() => {
+    const saved = localStorage.getItem('kgs_testimonials');
+    return saved ? JSON.parse(saved) : INITIAL_TESTIMONIALS;
+  });
+
   const [pricingPlans, setPricingPlans] = useState<PricingPlanItem[]>(() => {
     const saved = localStorage.getItem('kgs_pricing_plans');
-    return saved ? JSON.parse(saved) : B2B_PRICING_PLANS;
+    if (saved) {
+      try {
+        const parsed: PricingPlanItem[] = JSON.parse(saved);
+        const has3Segments = parsed.some(p => p.id === 'plan-isp-dedicated' || p.name === 'Internet Dedicated');
+        if (!has3Segments) return B2B_PRICING_PLANS;
+        return parsed;
+      } catch {
+        return B2B_PRICING_PLANS;
+      }
+    }
+    return B2B_PRICING_PLANS;
   });
 
   const [faqs, setFaqs] = useState<FaqItem[]>(() => {
     const saved = localStorage.getItem('kgs_faqs');
-    return saved ? JSON.parse(saved) : FAQ_DATA;
+    if (saved) {
+      try {
+        const parsed: FaqItem[] = JSON.parse(saved);
+        const hasUpdatedFaq = parsed.some(f => f.answer.includes('674/TEL.02.02/2020'));
+        if (!hasUpdatedFaq) return FAQ_DATA;
+        return parsed;
+      } catch {
+        return FAQ_DATA;
+      }
+    }
+    return FAQ_DATA;
   });
 
+  const [slideshowCategories, setSlideshowCategories] = useState<SlideshowCategoryItem[]>(() => {
+    const saved = localStorage.getItem('kgs_slideshow_categories');
+    if (saved) {
+      try {
+        const parsed: SlideshowCategoryItem[] = JSON.parse(saved);
+        const hasAll8AndOrder =
+          Array.isArray(parsed) &&
+          parsed.length >= 8 &&
+          parsed[0]?.slug === 'fiber-optik' &&
+          parsed.some(c => c.slug === 'cctv');
+        if (hasAll8AndOrder) {
+          return parsed.map(c => ({
+            ...c,
+            primaryImageUrl: (c.primaryImageUrl || '').replace(
+              'photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&q=80',
+              'photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80'
+            ),
+            images: (c.images || []).map(img => ({
+              ...img,
+              imageUrl: (img.imageUrl || '').replace(
+                'photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&q=80',
+                'photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80'
+              )
+            }))
+          }));
+        }
+      } catch {
+        return INITIAL_SLIDESHOW_CATEGORIES;
+      }
+    }
+    return INITIAL_SLIDESHOW_CATEGORIES;
+  });
+
+  const [selectedSlideshowSlug, setSelectedSlideshowSlug] = useState<string | null>(null);
+
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('kgs_admin_auth') === 'true';
+  });
   const [isLiveEditMode, setIsLiveEditMode] = useState<boolean>(false);
+  const effectiveLiveEditMode = isAdminAuthenticated && isLiveEditMode;
   const [adminInitialTab, setAdminInitialTab] = useState<string>('overview');
 
   const [currentView, setCurrentView] = useState<'public' | 'admin'>(() => {
     return window.location.hash === '#admin' ? 'admin' : 'public';
   });
+  const [activePageRoute, setActivePageRoute] = useState<string>('beranda');
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isPhpExportModalOpen, setIsPhpExportModalOpen] = useState(false);
   const [selectedStaticPage, setSelectedStaticPage] = useState<StaticPageItem | null>(null);
+  const [isFaqPageOpen, setIsFaqPageOpen] = useState(false);
   const [prefilledService, setPrefilledService] = useState<string>('');
   const [companyLogo, setCompanyLogo] = useState<string>(() => {
-    return localStorage.getItem('kgs_custom_logo') || '';
+    const savedLogo = localStorage.getItem('kgs_custom_logo') || '';
+    if (
+      savedLogo.includes('image_8b7e60bd') ||
+      savedLogo.includes('viewBox%3D%220%200%20280%2064%22')
+    ) {
+      localStorage.removeItem('kgs_custom_logo');
+      return '';
+    }
+    return savedLogo;
   });
 
   // Persist state changes
@@ -294,12 +564,24 @@ export default function App() {
   }, [partners]);
 
   useEffect(() => {
+    localStorage.setItem('kgs_promos', JSON.stringify(promos));
+  }, [promos]);
+
+  useEffect(() => {
+    localStorage.setItem('kgs_testimonials', JSON.stringify(testimonials));
+  }, [testimonials]);
+
+  useEffect(() => {
     localStorage.setItem('kgs_pricing_plans', JSON.stringify(pricingPlans));
   }, [pricingPlans]);
 
   useEffect(() => {
     localStorage.setItem('kgs_faqs', JSON.stringify(faqs));
   }, [faqs]);
+
+  useEffect(() => {
+    localStorage.setItem('kgs_slideshow_categories', JSON.stringify(slideshowCategories));
+  }, [slideshowCategories]);
 
   // Unified Export State Payload for Live Edit -> Export/Import synchronization
   const exportState: ExportStatePayload = useMemo(
@@ -363,10 +645,17 @@ export default function App() {
 
   const handleRequestQuote = (serviceName?: string) => {
     if (serviceName) setPrefilledService(serviceName);
-    const contactElem = document.getElementById('konsultasi');
-    if (contactElem) {
-      contactElem.scrollIntoView({ behavior: 'smooth' });
-    }
+    setIsFaqPageOpen(false);
+    setSelectedStaticPage(null);
+    setActivePageRoute('kontak');
+    setTimeout(() => {
+      const contactElem = document.getElementById('konsultasi');
+      if (contactElem) {
+        contactElem.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 60);
   };
 
   const handleAddInquiry = (newInquiry: Omit<InquiryMessage, 'id' | 'createdAt' | 'status'>) => {
@@ -390,8 +679,26 @@ export default function App() {
     setLogs([newLog, ...logs]);
   };
 
+  const handleAddTestimonial = (newTesti: Omit<TestimonialItem, 'id'>) => {
+    const item: TestimonialItem = {
+      ...newTesti,
+      id: `testi-${Date.now()}`
+    };
+    setTestimonials(prev => [item, ...prev]);
+
+    const newLog: AuditLogItem = {
+      id: `log-${Date.now()}`,
+      username: item.personName || 'Pelanggan',
+      action: 'Testimoni Pelanggan Baru',
+      details: `${item.personName} (${item.clientName}) mengirim testimoni layanan ${item.serviceUsed}`,
+      ipAddress: '127.0.0.1',
+      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+    };
+    setLogs(prev => [newLog, ...prev]);
+  };
+
   const getPageBySlug = (slug: string): StaticPageItem | undefined => {
-    return pages.find(p => p.slug === slug);
+    return pages.find(p => p.slug === slug) || INITIAL_PAGES.find(p => p.slug === slug);
   };
 
   const updatePageBySlug = (
@@ -414,10 +721,64 @@ export default function App() {
   };
 
   const handleOpenPageBySlug = (slug: string) => {
-    const page = pages.find(p => p.slug === slug);
+    const page = pages.find(p => p.slug === slug) || INITIAL_PAGES.find(p => p.slug === slug);
     if (page) {
       setSelectedStaticPage(page);
     }
+  };
+
+  const handleResetSubViews = () => {
+    setSelectedStaticPage(null);
+    setSelectedSlideshowSlug(null);
+    setIsFaqPageOpen(false);
+    setActivePageRoute('beranda');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenFaqPage = () => {
+    setSelectedStaticPage(null);
+    setSelectedSlideshowSlug(null);
+    setIsFaqPageOpen(true);
+    setActivePageRoute('faq');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateRoute = (route: string, anchorId?: string) => {
+    setSelectedStaticPage(null);
+    setSelectedSlideshowSlug(null);
+    if (route === 'faq') {
+      setIsFaqPageOpen(true);
+      setActivePageRoute('faq');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setIsFaqPageOpen(false);
+    setActivePageRoute(route || 'beranda');
+    setTimeout(() => {
+      if (anchorId) {
+        const el = document.getElementById(anchorId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const currentRouteKey = isFaqPageOpen ? 'faq' : activePageRoute;
+  const routeBreadcrumbLabels: Record<string, { label: string; phpFile: string }> = {
+    'tentang-kami': { label: 'Tentang Kami (Profil, Visi & Misi)', phpFile: 'tentang.php' },
+    layanan: { label: 'Produk & Layanan — Solusi Terintegrasi', phpFile: 'layanan.php' },
+    promo: { label: 'Promo & Penawaran Spesial Layanan', phpFile: 'promo.php' },
+    klien: { label: 'Client / Pelanggan & Portofolio Proyek', phpFile: 'klien.php' },
+    portofolio: { label: 'Client / Pelanggan & Portofolio Proyek', phpFile: 'portofolio.php' },
+    kemitraan: { label: 'Kemitraan & Partner Teknologi Resmi', phpFile: 'kemitraan.php' },
+    testimoni: { label: 'Testimoni & Kepuasan Pelanggan', phpFile: 'testimoni.php' },
+    harga: { label: 'Harga & 3 Segmen Paket Internet ISP', phpFile: 'harga.php' },
+    faq: { label: 'Pertanyaan Umum & Jawaban Teknis (FAQ)', phpFile: 'faq.php' },
+    artikel: { label: 'Artikel Edukasi & Wawasan Teknis', phpFile: 'blog.php' },
+    kontak: { label: 'Hubungi Kami, Konsultasi & Lokasi Peta', phpFile: 'kontak.php' }
   };
 
   return (
@@ -476,8 +837,17 @@ export default function App() {
             if (window.location.hash === '#admin') {
               window.history.replaceState(null, '', window.location.pathname);
             }
-            setIsLiveEditMode(true);
+            if (localStorage.getItem('kgs_admin_auth') === 'true') {
+              setIsAdminAuthenticated(true);
+              setIsLiveEditMode(true);
+            }
             setCurrentView('public');
+          }}
+          onAuthChange={auth => {
+            setIsAdminAuthenticated(auth);
+            if (!auth) {
+              setIsLiveEditMode(false);
+            }
           }}
           onOpenPhpExport={() => setIsPhpExportModalOpen(true)}
           companyLogo={companyLogo}
@@ -496,10 +866,29 @@ export default function App() {
           onUpdateCertifications={setCertifications}
           partners={partners}
           onUpdatePartners={setPartners}
+          promos={promos}
+          onUpdatePromos={setPromos}
+          testimonials={testimonials}
+          onUpdateTestimonials={setTestimonials}
           pricingPlans={pricingPlans}
           onUpdatePricingPlans={setPricingPlans}
           faqs={faqs}
           onUpdateFaqs={setFaqs}
+          slideshowCategories={slideshowCategories}
+          onUpdateSlideshowCategories={setSlideshowCategories}
+          onPreviewSlideshowCategory={slug => {
+            if (window.location.hash === '#admin') {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+            setSelectedSlideshowSlug(slug);
+            setActivePageRoute('beranda');
+            setIsFaqPageOpen(false);
+            setCurrentView('public');
+            setTimeout(() => {
+              const el = document.getElementById('slideshow');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+          }}
           initialTab={adminInitialTab}
           colorMode={colorMode}
           isDarkMode={isDarkMode}
@@ -518,6 +907,10 @@ export default function App() {
             onOpenPhpExport={() => setIsPhpExportModalOpen(true)}
             onOpenConsultation={() => handleRequestQuote()}
             onOpenPage={handleOpenPageBySlug}
+            onOpenFaqPage={handleOpenFaqPage}
+            onResetSubViews={handleResetSubViews}
+            activeRoute={currentRouteKey}
+            onNavigateRoute={handleNavigateRoute}
             companyLogo={companyLogo}
             navigationMenus={navigationMenus}
             companySettings={companySettings}
@@ -525,117 +918,351 @@ export default function App() {
             colorMode={colorMode}
             isDarkMode={isDarkMode}
             onChangeColorMode={handleChangeColorMode}
+            services={services}
+            pricingPlans={pricingPlans}
+            articles={articles}
+            projects={projects}
+            faqs={faqs}
+            pages={pages}
           />
 
           <main className="flex-1">
-            {/* 1. Beranda & Slider */}
-            <Hero
-              onOpenAudit={() => setIsAuditModalOpen(true)}
-              onOpenConsultation={() => handleRequestQuote()}
-              pageContent={getPageBySlug('beranda')}
-              sliderConfig={sliderConfig}
-              onUpdateSliderConfig={setSliderConfig}
-              onUpdatePageContent={updated => updatePageBySlug('beranda', updated)}
-              isLiveEditMode={isLiveEditMode}
-              themeConfig={themeConfig}
-              companySettings={companySettings}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+            {currentRouteKey !== 'beranda' ? (
+              <div className="bg-slate-50 dark:bg-slate-950">
+                <div className="bg-slate-900 border-b border-slate-800 text-white py-3.5">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-300">
+                      <a
+                        href="index.php"
+                        onClick={e => {
+                          e.preventDefault();
+                          handleResetSubViews();
+                        }}
+                        className="hover:text-white font-semibold cursor-pointer"
+                      >
+                        Beranda
+                      </a>
+                      <span>/</span>
+                      <span className="text-blue-400 font-bold">
+                        {routeBreadcrumbLabels[currentRouteKey]?.label || 'Halaman'}
+                      </span>
+                      {routeBreadcrumbLabels[currentRouteKey]?.phpFile && (
+                        <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px] border border-slate-700">
+                          {routeBreadcrumbLabels[currentRouteKey].phpFile}
+                        </span>
+                      )}
+                    </div>
+                    <a
+                      href="index.php"
+                      onClick={e => {
+                        e.preventDefault();
+                        handleResetSubViews();
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition cursor-pointer"
+                    >
+                      &larr; Kembali ke Beranda
+                    </a>
+                  </div>
+                </div>
 
-            {/* 2. Tentang Kami */}
-            <AboutSection
-              pageContent={getPageBySlug('tentang-kami')}
-              companySettings={companySettings}
-              timeline={timeline}
-              certifications={certifications}
-              partners={partners}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {currentRouteKey === 'tentang-kami' && (
+                  <AboutSection
+                    pageContent={getPageBySlug('tentang-kami')}
+                    companySettings={companySettings}
+                    timeline={timeline}
+                    certifications={certifications}
+                    partners={partners}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
 
-            {/* 3. Layanan */}
-            <ServicesSection
-              services={services}
-              categories={categories}
-              onRequestQuote={handleRequestQuote}
-              pageContent={getPageBySlug('layanan')}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {currentRouteKey === 'layanan' && (
+                  <ServicesSection
+                    services={services}
+                    categories={categories}
+                    projects={projects}
+                    onRequestQuote={handleRequestQuote}
+                    pageContent={getPageBySlug('layanan')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
 
-            {/* 4. Harga / Paket Solusi B2B */}
-            <PricingSection
-              onRequestQuote={handleRequestQuote}
-              pageContent={getPageBySlug('harga')}
-              pricingPlans={pricingPlans}
-              companySettings={companySettings}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {currentRouteKey === 'promo' && (
+                  <PromoSection
+                    promos={promos}
+                    onRequestQuote={handleRequestQuote}
+                    onAddInquiry={handleAddInquiry}
+                    pageContent={getPageBySlug('promo')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
 
-            {/* 5. FAQ */}
-            <FaqSection
-              onRequestQuote={() => handleRequestQuote()}
-              pageContent={getPageBySlug('faq')}
-              faqs={faqs}
-              companySettings={companySettings}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {(currentRouteKey === 'klien' || currentRouteKey === 'portofolio') && (
+                  <div id="klien">
+                    <PortfolioSection
+                      projects={projects}
+                      onUpdateProjects={setProjects}
+                      clients={clients}
+                      onRequestQuote={handleRequestQuote}
+                      pageContent={getPageBySlug('klien') || getPageBySlug('portofolio')}
+                      isLiveEditMode={effectiveLiveEditMode}
+                      onOpenAdminSection={tab => {
+                        setAdminInitialTab(tab);
+                        setCurrentView('admin');
+                      }}
+                    />
+                  </div>
+                )}
 
-            {/* 6. Portofolio (Dokumentasi Lapangan & Klien Terverifikasi) */}
-            <PortfolioSection
-              projects={projects}
-              clients={clients}
-              onRequestQuote={handleRequestQuote}
-              pageContent={getPageBySlug('portofolio')}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {currentRouteKey === 'kemitraan' && (
+                  <KemitraanSection
+                    partners={partners}
+                    certifications={certifications}
+                    onRequestQuote={handleRequestQuote}
+                    pageContent={getPageBySlug('kemitraan')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
 
-            {/* Artikel & Wawasan Edukatif */}
-            <ArticlesSection
-              articles={articles}
-              onRequestQuote={handleRequestQuote}
-              pageContent={getPageBySlug('blog')}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {currentRouteKey === 'testimoni' && (
+                  <TestimoniSection
+                    testimonials={testimonials}
+                    onAddTestimonial={handleAddTestimonial}
+                    onRequestQuote={handleRequestQuote}
+                    pageContent={getPageBySlug('testimoni')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
 
-            {/* 7. Kontak & Form Penawaran */}
-            <ContactSection
-              services={services}
-              prefilledService={prefilledService}
-              onAddInquiry={handleAddInquiry}
-              companySettings={companySettings}
-              pageContent={getPageBySlug('kontak')}
-              isLiveEditMode={isLiveEditMode}
-              onOpenAdminSection={tab => {
-                setAdminInitialTab(tab);
-                setCurrentView('admin');
-              }}
-            />
+                {currentRouteKey === 'harga' && (
+                  <PricingSection
+                    onRequestQuote={handleRequestQuote}
+                    pageContent={getPageBySlug('harga')}
+                    pricingPlans={pricingPlans}
+                    companySettings={companySettings}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
+
+                {currentRouteKey === 'faq' && (
+                  <FaqSection
+                    onRequestQuote={() => handleRequestQuote()}
+                    pageContent={getPageBySlug('faq')}
+                    faqs={faqs}
+                    companySettings={companySettings}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
+
+                {currentRouteKey === 'artikel' && (
+                  <ArticlesSection
+                    articles={articles}
+                    onRequestQuote={handleRequestQuote}
+                    pageContent={getPageBySlug('blog')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
+
+                {currentRouteKey === 'kontak' && (
+                  <ContactSection
+                    services={services}
+                    prefilledService={prefilledService}
+                    onAddInquiry={handleAddInquiry}
+                    companySettings={companySettings}
+                    pageContent={getPageBySlug('kontak')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <>
+                {/* 1. Beranda & Side Slideshows */}
+                <Hero
+                  onOpenAudit={() => setIsAuditModalOpen(true)}
+                  onOpenConsultation={() => handleRequestQuote()}
+                  pageContent={getPageBySlug('beranda')}
+                  sliderConfig={sliderConfig}
+                  onUpdateSliderConfig={setSliderConfig}
+                  onUpdatePageContent={updated => updatePageBySlug('beranda', updated)}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  themeConfig={themeConfig}
+                  companySettings={companySettings}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                  slideshowCategories={slideshowCategories}
+                  onSelectSlideshowSlug={setSelectedSlideshowSlug}
+                />
+
+                {/* 8 Featured Slideshow Items with Read More & Why Choose Us? */}
+                <SlideshowSection
+                  categories={slideshowCategories}
+                  pageData={getPageBySlug('slideshow')}
+                  selectedSlug={selectedSlideshowSlug}
+                  onSelectSlug={setSelectedSlideshowSlug}
+                  onRequestConsultation={handleRequestQuote}
+                />
+
+                {/* Tentang Kami */}
+                <AboutSection
+                  pageContent={getPageBySlug('tentang-kami')}
+                  companySettings={companySettings}
+                  timeline={timeline}
+                  certifications={certifications}
+                  partners={partners}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* 2. Produk & Layanan */}
+                <ServicesSection
+                  services={services}
+                  categories={categories}
+                  projects={projects}
+                  onRequestQuote={handleRequestQuote}
+                  pageContent={getPageBySlug('layanan')}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* 3. Promo */}
+                <PromoSection
+                  promos={promos}
+                  onRequestQuote={handleRequestQuote}
+                  onAddInquiry={handleAddInquiry}
+                  pageContent={getPageBySlug('promo')}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* Harga / Paket Solusi B2B */}
+                <PricingSection
+                  onRequestQuote={handleRequestQuote}
+                  pageContent={getPageBySlug('harga')}
+                  pricingPlans={pricingPlans}
+                  companySettings={companySettings}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* 4. Client / Pelanggan & Portofolio */}
+                <div id="klien">
+                  <PortfolioSection
+                    projects={projects}
+                    onUpdateProjects={setProjects}
+                    clients={clients}
+                    onRequestQuote={handleRequestQuote}
+                    pageContent={getPageBySlug('klien') || getPageBySlug('portofolio')}
+                    isLiveEditMode={effectiveLiveEditMode}
+                    onOpenAdminSection={tab => {
+                      setAdminInitialTab(tab);
+                      setCurrentView('admin');
+                    }}
+                  />
+                </div>
+
+                {/* 5. Kemitraan */}
+                <KemitraanSection
+                  partners={partners}
+                  certifications={certifications}
+                  onRequestQuote={handleRequestQuote}
+                  pageContent={getPageBySlug('kemitraan')}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* 6. Testimoni */}
+                <TestimoniSection
+                  testimonials={testimonials}
+                  onAddTestimonial={handleAddTestimonial}
+                  onRequestQuote={handleRequestQuote}
+                  pageContent={getPageBySlug('testimoni')}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* Artikel & Wawasan Edukatif */}
+                <ArticlesSection
+                  articles={articles}
+                  onRequestQuote={handleRequestQuote}
+                  pageContent={getPageBySlug('blog')}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+
+                {/* 7. Hubungi Kami & Form Penawaran */}
+                <ContactSection
+                  services={services}
+                  prefilledService={prefilledService}
+                  onAddInquiry={handleAddInquiry}
+                  companySettings={companySettings}
+                  pageContent={getPageBySlug('kontak')}
+                  isLiveEditMode={effectiveLiveEditMode}
+                  onOpenAdminSection={tab => {
+                    setAdminInitialTab(tab);
+                    setCurrentView('admin');
+                  }}
+                />
+              </>
+            )}
           </main>
 
           <Footer
@@ -643,55 +1270,69 @@ export default function App() {
             onOpenPhpExport={() => setIsPhpExportModalOpen(true)}
             onOpenAdmin={() => setCurrentView('admin')}
             onOpenPage={handleOpenPageBySlug}
+            onOpenFaqPage={handleOpenFaqPage}
+            onResetSubViews={handleResetSubViews}
+            onNavigateRoute={handleNavigateRoute}
+            onUpdateCompanySettings={setCompanySettings}
             companyLogo={companyLogo}
             navigationMenus={navigationMenus}
             companySettings={companySettings}
+            certifications={certifications}
             themeConfig={themeConfig}
-            isLiveEditMode={isLiveEditMode}
+            isLiveEditMode={effectiveLiveEditMode}
             onOpenAdminSection={tab => {
               if (tab) setAdminInitialTab(tab);
               setCurrentView('admin');
             }}
           />
 
-          {/* Live Visual Website Editor Dock for Admin */}
-          <LiveWebsiteEditorBar
-            isLiveEditMode={isLiveEditMode}
-            onToggleLiveEditMode={setIsLiveEditMode}
-            onOpenAdminCms={tab => {
-              if (tab) setAdminInitialTab(tab);
-              setCurrentView('admin');
-            }}
-            pages={pages}
-            onUpdatePages={setPages}
-            services={services}
-            onUpdateServices={setServices}
-            projects={projects}
-            onUpdateProjects={setProjects}
-            articles={articles}
-            onUpdateArticles={setArticles}
-            companySettings={companySettings}
-            onUpdateCompanySettings={setCompanySettings}
-            companyLogo={companyLogo}
-            onUpdateCompanyLogo={setCompanyLogo}
-            themeConfig={themeConfig}
-            onUpdateThemeConfig={setThemeConfig}
-            sliderConfig={sliderConfig}
-            onUpdateSliderConfig={setSliderConfig}
-            inlineOverrides={inlineOverrides}
-            onUpdateInlineOverrides={setInlineOverrides}
-            timeline={timeline}
-            onUpdateTimeline={setTimeline}
-            certifications={certifications}
-            onUpdateCertifications={setCertifications}
-            partners={partners}
-            onUpdatePartners={setPartners}
-            pricingPlans={pricingPlans}
-            onUpdatePricingPlans={setPricingPlans}
-            faqs={faqs}
-            onUpdateFaqs={setFaqs}
-            exportState={exportState}
-          />
+          {/* Live Visual Website Editor Dock — ONLY rendered when Admin is authenticated */}
+          {isAdminAuthenticated && (
+            <LiveWebsiteEditorBar
+              isLiveEditMode={effectiveLiveEditMode}
+              onToggleLiveEditMode={val => {
+                if (localStorage.getItem('kgs_admin_auth') === 'true') {
+                  setIsLiveEditMode(val);
+                } else {
+                  setIsAdminAuthenticated(false);
+                  setIsLiveEditMode(false);
+                }
+              }}
+              onOpenAdminCms={tab => {
+                if (tab) setAdminInitialTab(tab);
+                setCurrentView('admin');
+              }}
+              pages={pages}
+              onUpdatePages={setPages}
+              services={services}
+              onUpdateServices={setServices}
+              projects={projects}
+              onUpdateProjects={setProjects}
+              articles={articles}
+              onUpdateArticles={setArticles}
+              companySettings={companySettings}
+              onUpdateCompanySettings={setCompanySettings}
+              companyLogo={companyLogo}
+              onUpdateCompanyLogo={setCompanyLogo}
+              themeConfig={themeConfig}
+              onUpdateThemeConfig={setThemeConfig}
+              sliderConfig={sliderConfig}
+              onUpdateSliderConfig={setSliderConfig}
+              inlineOverrides={inlineOverrides}
+              onUpdateInlineOverrides={setInlineOverrides}
+              timeline={timeline}
+              onUpdateTimeline={setTimeline}
+              certifications={certifications}
+              onUpdateCertifications={setCertifications}
+              partners={partners}
+              onUpdatePartners={setPartners}
+              pricingPlans={pricingPlans}
+              onUpdatePricingPlans={setPricingPlans}
+              faqs={faqs}
+              onUpdateFaqs={setFaqs}
+              exportState={exportState}
+            />
+          )}
         </div>
       )}
 

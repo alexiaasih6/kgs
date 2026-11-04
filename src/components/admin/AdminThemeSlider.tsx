@@ -4,7 +4,10 @@ import {
   WEBSITE_THEME_PRESETS,
   HeroSliderConfig,
   HeroSlideItem,
-  HeroSliderLayoutMode
+  HeroSliderLayoutMode,
+  SlideshowCategoryItem,
+  INITIAL_SLIDESHOW_CATEGORIES,
+  CompanySettings
 } from '../../data/companyData';
 import {
   Palette,
@@ -24,12 +27,21 @@ import {
   Edit3,
   X
 } from 'lucide-react';
+import {
+  MediaLibraryPickerModal,
+  MediaLibraryItem,
+  recordUploadedMedia
+} from './MediaLibraryPickerModal';
 
 interface AdminThemeSliderProps {
   themeConfig: WebsiteThemeConfig;
   onUpdateThemeConfig: (theme: WebsiteThemeConfig) => void;
   sliderConfig: HeroSliderConfig;
   onUpdateSliderConfig: (slider: HeroSliderConfig) => void;
+  slideshowCategories?: SlideshowCategoryItem[];
+  onOpenSlideshowTab?: () => void;
+  companySettings?: CompanySettings;
+  onUpdateCompanySettings?: (settings: CompanySettings) => void;
   onOpenLiveEditor: () => void;
 }
 
@@ -38,6 +50,10 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
   onUpdateThemeConfig,
   sliderConfig,
   onUpdateSliderConfig,
+  slideshowCategories = INITIAL_SLIDESHOW_CATEGORIES,
+  onOpenSlideshowTab,
+  companySettings,
+  onUpdateCompanySettings,
   onOpenLiveEditor
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'slider' | 'theme'>('slider');
@@ -86,6 +102,12 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
     showToast(`Posisi slider beranda diubah menjadi: ${modeLabel}`);
   };
 
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<{
+    mode: 'new_slide' | 'form_slide' | 'replace_slide';
+    slideId?: string;
+    slideIndex?: number;
+  } | null>(null);
+
   const handleFileUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
     onLoaded: (dataUrl: string) => void
@@ -96,7 +118,10 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
     const reader = new FileReader();
     reader.onload = ev => {
       const result = ev.target?.result as string;
-      if (result) onLoaded(result);
+      if (result) {
+        recordUploadedMedia(result, file.name, 'Slider Beranda');
+        onLoaded(result);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -277,7 +302,7 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
           }`}
         >
           <ImageIcon className="w-4 h-4 text-blue-400" />
-          <span>1. Pengaturan Slider Gambar Beranda ({sliderConfig.slides.length} Foto)</span>
+          <span>1. Pengaturan Slider Gambar Beranda ({sliderConfig.slides.length} Slide — Sumber: slideshow.php)</span>
         </button>
 
         <button
@@ -290,9 +315,200 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
           }`}
         >
           <Palette className="w-4 h-4 text-amber-400" />
-          <span>2. Pengaturan Tema & Warna Website ({themeConfig.name})</span>
+          <span>2. Pengaturan Tema, Warna Logo &amp; PT. KREATIF GLOBAL SOLUSINDO ({themeConfig.name})</span>
         </button>
       </div>
+
+      {/* PANEL CEPAT KUSTOMISASI LOGO SEBELAH KIRI & WARNA TULISAN PT. KREATIF GLOBAL SOLUSINDO (VERSI MOBILE & DESKTOP) */}
+      {companySettings && onUpdateCompanySettings && (
+        <div className="bg-white rounded-2xl border-2 border-blue-200 p-5 shadow-xs space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-extrabold uppercase tracking-wider">
+                <span>📱 Tampilan Versi Mobile &amp; Desktop Header</span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900">
+                Logo di Sebelah Kiri Tulisan &quot;PT. KREATIF GLOBAL SOLUSINDO&quot; &amp; Kustomisasi Warna
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Pada versi mobile maupun desktop, posisi Logo berada tepat di sebelah kiri tulisan <strong>PT. KREATIF GLOBAL SOLUSINDO</strong>. Sesuaikan warna latar logo, warna teks logo, warna judul perusahaan, dan sub-judul layanan di bawah ini:
+              </p>
+            </div>
+
+            {/* Live Mobile Header Preview */}
+            <div className="bg-slate-100 p-2.5 rounded-2xl border border-slate-200 shrink-0">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 px-1 flex items-center justify-between">
+                <span>Preview Tampilan Mobile (Layar HP)</span>
+                <span className="text-emerald-600 font-extrabold">● Live</span>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 px-3 py-2.5 shadow-2xs flex items-center justify-between gap-3 max-w-[340px]">
+                <div className="flex flex-row items-center gap-2.5 min-w-0 flex-1">
+                  {companySettings.logoUrl ? (
+                    <img
+                      src={companySettings.logoUrl}
+                      alt={companySettings.legalName}
+                      className="h-9 w-auto max-w-[90px] object-contain rounded-lg border border-slate-200 p-0.5 shrink-0 bg-white"
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        backgroundColor: companySettings.logoBgColor || '#0f172a',
+                        color: companySettings.logoTextColor || '#ffffff'
+                      }}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs tracking-tight shadow-xs shrink-0"
+                    >
+                      KGS
+                    </div>
+                  )}
+                  <div className="flex flex-col justify-center min-w-0 flex-1 text-left">
+                    <span
+                      style={{ color: companySettings.companyNameColor || '#0f172a' }}
+                      className="font-extrabold text-xs tracking-tight leading-tight truncate block"
+                    >
+                      {companySettings.legalName || 'PT. KREATIF GLOBAL SOLUSINDO'}
+                    </span>
+                    <span
+                      style={{ color: companySettings.sloganColor || '#2563eb' }}
+                      className="text-[10px] font-semibold tracking-wide leading-snug truncate block mt-0.5"
+                    >
+                      {companySettings.slogan || 'System Integrator, Security Solution & Internet Provider'}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 text-xs font-bold shrink-0">
+                  ☰
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                1. Warna Latar Logo (Sebelah Kiri)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={companySettings.logoBgColor || '#0f172a'}
+                  onChange={e => {
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      logoBgColor: e.target.value
+                    });
+                    showToast('Warna latar Logo KGS berhasil diperbarui!');
+                  }}
+                  className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0 bg-white p-0.5"
+                />
+                <input
+                  type="text"
+                  value={companySettings.logoBgColor || '#0f172a'}
+                  onChange={e =>
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      logoBgColor: e.target.value
+                    })
+                  }
+                  className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                2. Warna Teks &quot;KGS&quot; pada Logo
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={companySettings.logoTextColor || '#ffffff'}
+                  onChange={e => {
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      logoTextColor: e.target.value
+                    });
+                    showToast('Warna teks Logo KGS berhasil diperbarui!');
+                  }}
+                  className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0 bg-white p-0.5"
+                />
+                <input
+                  type="text"
+                  value={companySettings.logoTextColor || '#ffffff'}
+                  onChange={e =>
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      logoTextColor: e.target.value
+                    })
+                  }
+                  className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                3. Warna Tulisan PT. KREATIF GLOBAL SOLUSINDO
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={companySettings.companyNameColor || '#0f172a'}
+                  onChange={e => {
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      companyNameColor: e.target.value
+                    });
+                    showToast('Warna tulisan PT. KREATIF GLOBAL SOLUSINDO berhasil diperbarui!');
+                  }}
+                  className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0 bg-white p-0.5"
+                />
+                <input
+                  type="text"
+                  value={companySettings.companyNameColor || '#0f172a'}
+                  onChange={e =>
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      companyNameColor: e.target.value
+                    })
+                  }
+                  className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                4. Warna Sub-Judul (System Integrator...)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={companySettings.sloganColor || '#2563eb'}
+                  onChange={e => {
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      sloganColor: e.target.value
+                    });
+                    showToast('Warna sub-judul layanan berhasil diperbarui!');
+                  }}
+                  className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0 bg-white p-0.5"
+                />
+                <input
+                  type="text"
+                  value={companySettings.sloganColor || '#2563eb'}
+                  onChange={e =>
+                    onUpdateCompanySettings({
+                      ...companySettings,
+                      sloganColor: e.target.value
+                    })
+                  }
+                  className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: HERO SLIDER BERANDA */}
       {activeSubTab === 'slider' && (
@@ -515,22 +731,70 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Daftar Foto Slider & Upload */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+          {/* Card 2: Daftar Foto Slider & Upload (Menggunakan Halaman Slide Show Infrastruktur slideshow.php) */}
+          <div className="bg-white rounded-2xl border-2 border-emerald-200 p-6 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  B. Daftar Gambar Slider Beranda (Upload Foto & Atur Urutan)
-                </h3>
-                <p className="text-slate-500 text-xs mt-0.5">
-                  Upload foto langsung dari perangkat Anda atau tambahkan slide dengan judul & keterangan.
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-extrabold">
+                    ✓ Default Slider Beranda Aktif (Sumber: slideshow.php)
+                  </span>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    B. Daftar Gambar Slider Beranda Saat Ini ({sortedSlides.length} Slide — Halaman Slide Show Infrastruktur)
+                  </h3>
+                </div>
+                <p className="text-slate-500 text-xs mt-1">
+                  Menggunakan daftar kategori &amp; gambar dari <strong>Halaman Slide Show Infrastruktur (<code>slideshow.php</code>)</strong>: Fiber Optik, Guy Wire Tower, Self Supporting Tower Monopole, Lightning Protector, IP – PBX, Wireless, Access Door, dan CCTV.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const syncedFromSlideshow: HeroSlideItem[] = [...(slideshowCategories || INITIAL_SLIDESHOW_CATEGORIES)]
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((cat, idx) => ({
+                        id: cat.id || `ss-cat-${idx + 1}`,
+                        title: cat.title,
+                        subtitle: cat.shortDescription,
+                        badgeText: `Slide Show Infrastruktur · ${(cat.images || []).length} Gambar`,
+                        imageUrl: cat.coverImage || cat.images?.[0]?.imagePath || '',
+                        sortOrder: idx + 1,
+                        isActive: cat.isActive !== false,
+                        slug: cat.slug,
+                        imageCount: (cat.images || []).length
+                      }));
+                    onUpdateSliderConfig({
+                      ...sliderConfig,
+                      layoutMode: sliderConfig.layoutMode === 'noc' ? 'side' : sliderConfig.layoutMode,
+                      autoPlay: true,
+                      slides: syncedFromSlideshow
+                    });
+                    showToast(
+                      `Daftar Gambar Slider Beranda berhasil disinkronkan dari Halaman Slide Show Infrastruktur (${syncedFromSlideshow.length} Slide)!`
+                    );
+                  }}
+                  className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs"
+                >
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>Sinkronkan dari Slide Show Infrastruktur (slideshow.php)</span>
+                </button>
+
+                {onOpenSlideshowTab && (
+                  <button
+                    type="button"
+                    onClick={onOpenSlideshowTab}
+                    className="px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer text-xs"
+                  >
+                    <Eye className="w-4 h-4 text-indigo-600" />
+                    <span>Kelola Multi-Gambar (slideshow.php)</span>
+                  </button>
+                )}
+
                 <label className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
                   <Upload className="w-4 h-4" />
-                  <span>+ Upload Foto Langsung</span>
+                  <span>+ Choose File / Upload Foto</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -541,11 +805,20 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => setMediaPickerTarget({ mode: 'new_slide' })}
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>🖼️ Pilih dari Media &amp; Upload Gambar</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={openAddSlideModal}
                   className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Tambah Slide & Caption</span>
+                  <span>+ Tambah Slide &amp; Caption</span>
                 </button>
               </div>
             </div>
@@ -595,25 +868,43 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
                           </span>
                         </div>
 
-                        {/* Quick Replace Photo Button on Hover */}
-                        <label className="absolute bottom-3 right-3 px-3 py-1.5 bg-white/95 hover:bg-white text-slate-900 font-bold rounded-lg text-[11px] shadow-md flex items-center gap-1.5 cursor-pointer">
-                          <Upload className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Ganti Foto</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={e =>
-                              handleFileUpload(e, dataUrl => {
-                                const updated = sliderConfig.slides.map(s =>
-                                  s.id === slide.id ? { ...s, imageUrl: dataUrl } : s
-                                );
-                                onUpdateSliderConfig({ ...sliderConfig, slides: updated });
-                                showToast(`Foto Slide #${idx + 1} berhasil diganti!`);
+                        {/* Quick Replace Photo Buttons on Hover: Choose File OR Pilih dari Media */}
+                        <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMediaPickerTarget({
+                                mode: 'replace_slide',
+                                slideId: slide.id,
+                                slideIndex: idx
                               })
                             }
-                            className="hidden"
-                          />
-                        </label>
+                            className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold rounded-lg text-[10px] shadow-md flex items-center gap-1 cursor-pointer"
+                            title="Pilih dari File yang Pernah Di-upload (Media & Upload Gambar)"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>🖼️ Pilih Media</span>
+                          </button>
+
+                          <label className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-slate-900 font-bold rounded-lg text-[10px] shadow-md flex items-center gap-1 cursor-pointer">
+                            <Upload className="w-3 h-3 text-blue-600" />
+                            <span>Choose File</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={e =>
+                                handleFileUpload(e, dataUrl => {
+                                  const updated = sliderConfig.slides.map(s =>
+                                    s.id === slide.id ? { ...s, imageUrl: dataUrl } : s
+                                  );
+                                  onUpdateSliderConfig({ ...sliderConfig, slides: updated });
+                                  showToast(`Foto Slide #${idx + 1} berhasil diganti!`);
+                                })
+                              }
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       </div>
 
                       {/* Slide Info */}
@@ -870,6 +1161,144 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
                   </select>
                 </div>
               </div>
+
+              {/* Custom Colors for Mobile & Desktop Header Logo KGS + PT. KREATIF GLOBAL SOLUSINDO */}
+              {companySettings && onUpdateCompanySettings && (
+                <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200 space-y-3 mt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h5 className="font-extrabold text-slate-900 text-xs">
+                        C. Warna Logo KGS &amp; Tulisan &quot;PT. KREATIF GLOBAL SOLUSINDO&quot; (Tampil Sebelah Kiri di Mobile &amp; Desktop)
+                      </h5>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Sesuaikan warna kotak logo KGS di sebelah kiri beserta warna tulisan PT. KREATIF GLOBAL SOLUSINDO dan sub-judulnya.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="p-3 rounded-xl bg-white border border-slate-200">
+                      <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                        Warna Latar Logo KGS
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={companySettings.logoBgColor || '#0f172a'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              logoBgColor: e.target.value
+                            })
+                          }
+                          className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={companySettings.logoBgColor || '#0f172a'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              logoBgColor: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-slate-200">
+                      <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                        Warna Teks &quot;KGS&quot; Logo
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={companySettings.logoTextColor || '#ffffff'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              logoTextColor: e.target.value
+                            })
+                          }
+                          className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={companySettings.logoTextColor || '#ffffff'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              logoTextColor: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-slate-200">
+                      <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                        Warna Tulisan PT. KREATIF GLOBAL SOLUSINDO
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={companySettings.companyNameColor || '#0f172a'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              companyNameColor: e.target.value
+                            })
+                          }
+                          className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={companySettings.companyNameColor || '#0f172a'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              companyNameColor: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-slate-200">
+                      <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                        Warna Sub-Judul Layanan
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={companySettings.sloganColor || '#2563eb'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              sloganColor: e.target.value
+                            })
+                          }
+                          className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={companySettings.sloganColor || '#2563eb'}
+                          onChange={e =>
+                            onUpdateCompanySettings({
+                              ...companySettings,
+                              sloganColor: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-lg px-2 py-1 font-mono text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -912,7 +1341,7 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl cursor-pointer inline-flex items-center gap-1.5">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Pilih / Upload Foto dari Perangkat</span>
+                    <span>Choose File (Upload dari Perangkat)</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -924,6 +1353,15 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
                       className="hidden"
                     />
                   </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setMediaPickerTarget({ mode: 'form_slide' })}
+                    className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>🖼️ Pilih dari Media &amp; Upload Gambar</span>
+                  </button>
                 </div>
 
                 <input
@@ -931,7 +1369,7 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
                   required
                   value={slideForm.imageUrl}
                   onChange={e => setSlideForm({ ...slideForm, imageUrl: e.target.value })}
-                  placeholder="Atau tempel URL gambar (https://...)"
+                  placeholder="Atau tempel URL / Path gambar dari Media Manager (uploads/...)"
                   className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-mono"
                 />
               </div>
@@ -1006,6 +1444,56 @@ export const AdminThemeSlider: React.FC<AdminThemeSliderProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Pilih dari Media & Upload Gambar */}
+      <MediaLibraryPickerModal
+        isOpen={Boolean(mediaPickerTarget)}
+        onClose={() => setMediaPickerTarget(null)}
+        slideshowCategories={slideshowCategories}
+        sliderConfig={sliderConfig}
+        onSelect={(item: MediaLibraryItem) => {
+          if (!mediaPickerTarget) return;
+          const url = item.url;
+          if (mediaPickerTarget.mode === 'form_slide') {
+            setSlideForm(prev => ({
+              ...prev,
+              imageUrl: url,
+              title: prev.title || item.title || item.name || prev.title,
+              badgeText: prev.badgeText || item.sourceLabel || 'Dokumentasi KGS'
+            }));
+            showToast('Gambar berhasil dipilih dari Pustaka Media & Upload Gambar!');
+          } else if (mediaPickerTarget.mode === 'replace_slide' && mediaPickerTarget.slideId) {
+            const updated = sliderConfig.slides.map(s =>
+              s.id === mediaPickerTarget.slideId ? { ...s, imageUrl: url } : s
+            );
+            onUpdateSliderConfig({ ...sliderConfig, slides: updated });
+            showToast(
+              `Foto Slide #${(mediaPickerTarget.slideIndex ?? 0) + 1} berhasil diganti dari Media & Upload Gambar!`
+            );
+          } else if (mediaPickerTarget.mode === 'new_slide') {
+            const nextOrder =
+              sliderConfig.slides.length > 0
+                ? Math.max(...sliderConfig.slides.map(s => s.sortOrder)) + 1
+                : 1;
+            const newSlide: HeroSlideItem = {
+              id: `slide-${Date.now()}`,
+              title: item.title || item.name || 'Dokumentasi Infrastruktur & Layanan PT. KGS',
+              subtitle:
+                'Solusi terintegrasi jaringan Fiber Optic, Tower Telekomunikasi, CCTV & ISP KGSNet.',
+              badgeText: item.sourceLabel || 'Media & Upload Gambar',
+              imageUrl: url,
+              sortOrder: nextOrder,
+              isActive: true
+            };
+            onUpdateSliderConfig({
+              ...sliderConfig,
+              slides: [...sliderConfig.slides, newSlide]
+            });
+            showToast('Slide baru dari Media & Upload Gambar berhasil ditambahkan ke Beranda!');
+          }
+          setMediaPickerTarget(null);
+        }}
+      />
     </div>
   );
 };

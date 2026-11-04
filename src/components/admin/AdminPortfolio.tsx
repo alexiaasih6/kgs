@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProjectPhoto } from '../../data/companyData';
-import { Camera, Plus, Trash2, MapPin, Search, X, Edit3, Check, ShieldCheck, Upload, Image as ImageIcon } from 'lucide-react';
+import { Camera, Plus, Trash2, MapPin, Search, X, Edit3, Check, ShieldCheck, Upload, Image as ImageIcon, FolderOpen } from 'lucide-react';
+import { MediaLibraryPickerModal, recordUploadedMedia } from './MediaLibraryPickerModal';
 
 interface AdminPortfolioProps {
   projects: ProjectPhoto[];
@@ -25,6 +26,7 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
   const [editCategory, setEditCategory] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
+  const [mediaPickerMode, setMediaPickerMode] = useState<'create' | 'edit' | null>(null);
 
   const filtered = projects.filter(
     p =>
@@ -52,6 +54,13 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ');
+      recordUploadedMedia(
+        result,
+        isEdit ? editTitle || baseName : newTitle || baseName,
+        isEdit ? editCategory || 'Portofolio Proyek' : newCategory || 'Portofolio Proyek',
+        file.name
+      );
       if (isEdit) {
         setEditImageUrl(result);
       } else {
@@ -297,10 +306,10 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
                     </button>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <label className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Foto</span>
+                    <span>Choose File / Upload Foto</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -308,12 +317,20 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
                       className="hidden"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => setMediaPickerMode('edit')}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>🖼️ Pilih dari Media &amp; Upload Gambar</span>
+                  </button>
                   <input
                     type="url"
                     placeholder="Atau masukkan URL gambar..."
                     value={editImageUrl.startsWith('data:') ? '' : editImageUrl}
                     onChange={e => setEditImageUrl(e.target.value)}
-                    className="flex-1 border border-slate-300 rounded-lg p-2 text-xs"
+                    className="flex-1 min-w-[180px] border border-slate-300 rounded-lg p-2 text-xs"
                   />
                 </div>
               </div>
@@ -419,10 +436,10 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
                     </button>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <label className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Foto</span>
+                    <span>Choose File / Upload Foto</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -430,12 +447,20 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
                       className="hidden"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => setMediaPickerMode('create')}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>🖼️ Pilih dari Media &amp; Upload Gambar</span>
+                  </button>
                   <input
                     type="url"
                     placeholder="Atau masukkan URL gambar..."
                     value={newImageUrl.startsWith('data:') ? '' : newImageUrl}
                     onChange={e => setNewImageUrl(e.target.value)}
-                    className="flex-1 border border-slate-300 rounded-lg p-2 text-xs"
+                    className="flex-1 min-w-[180px] border border-slate-300 rounded-lg p-2 text-xs"
                   />
                 </div>
               </div>
@@ -459,6 +484,21 @@ export const AdminPortfolio: React.FC<AdminPortfolioProps> = ({ projects, onUpda
           </div>
         </div>
       )}
+
+      {/* Modal Pilih dari Media & Upload Gambar */}
+      <MediaLibraryPickerModal
+        isOpen={mediaPickerMode !== null}
+        onClose={() => setMediaPickerMode(null)}
+        projects={projects}
+        title="Pilih Foto Dokumentasi dari Media & Upload Gambar"
+        onSelect={item => {
+          if (mediaPickerMode === 'edit') {
+            setEditImageUrl(item.url);
+          } else if (mediaPickerMode === 'create') {
+            setNewImageUrl(item.url);
+          }
+        }}
+      />
     </div>
   );
 };

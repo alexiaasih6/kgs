@@ -9,13 +9,13 @@ $categories = $pdo->query("SELECT * FROM service_categories ORDER BY segment_num
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
-    $name = trim($_POST['name'] ?? '');
+    $name = clean_plain_text((string)($_POST['name'] ?? ''), 180);
     $category_id = (int)($_POST['category_id'] ?? 0);
-    $summary = trim($_POST['summary'] ?? '');
-    $description = trim($_POST['description'] ?? '');
+    $summary = clean_plain_text((string)($_POST['summary'] ?? ''), 1000);
+    $description = clean_plain_text((string)($_POST['description'] ?? ''), 4000);
     $pdf_page = (int)($_POST['pdf_page'] ?? 4);
-    $verification_status = $_POST['verification_status'] ?? 'Standar Resmi KGS';
-    $admin_notes = trim($_POST['admin_notes'] ?? 'Standar Layanan Resmi PT. KGS');
+    $verification_status = clean_plain_text((string)($_POST['verification_status'] ?? 'Standar Resmi KGS'), 100);
+    $admin_notes = clean_plain_text((string)($_POST['admin_notes'] ?? 'Standar Layanan Resmi PT. KGS'), 500);
     $is_published = isset($_POST['is_published']) ? 1 : 0;
     $sort_order = (int)($_POST['sort_order'] ?? 1);
 
@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO services (category_id, name, slug, summary, description, main_image, pdf_page, verification_status, admin_notes, is_published, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$category_id, $name, $slug, $summary, $description ?: $summary, $main_image, $pdf_page, $verification_status, $admin_notes, $is_published, $sort_order]);
 
+            invalidate_live_preview_json('services');
             log_audit($pdo, 'Tambah Layanan', "Menambahkan layanan baru: $name");
             header("Location: layanan.php?msg=added");
             exit;
@@ -91,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <div>
                 <label class="block font-semibold mb-1">Gambar Ilustrasi (Opsional)</label>
-                <input type="file" name="main_image_file" accept=".jpg,.jpeg,.png,.webp,.svg" class="w-full border border-slate-300 rounded-lg p-2 bg-slate-50">
+                <input type="file" name="main_image_file" accept=".jpg,.jpeg,.png,.webp,.gif" class="w-full border border-slate-300 rounded-lg p-2 bg-slate-50">
             </div>
         </div>
 

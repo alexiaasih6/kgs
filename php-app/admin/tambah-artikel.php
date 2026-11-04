@@ -27,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $featured_image = handle_image_upload('featured_image_file', 'uploads/', $pdo);
             if (!$featured_image && !empty($_POST['featured_image_url'])) {
-                $featured_image = trim($_POST['featured_image_url']);
+                $candidate_url = sanitize_nav_url(trim($_POST['featured_image_url']));
+                $featured_image = ($candidate_url !== '#') ? $candidate_url : null;
             }
 
             $slug = create_slug($title);
@@ -56,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $published_at
             ]);
 
+            invalidate_live_preview_json('posts');
             log_audit($pdo, 'Tambah Artikel', "Membuat artikel baru: $title");
             header("Location: blog.php?msg=created");
             exit;

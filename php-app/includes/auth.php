@@ -1,4 +1,7 @@
 <?php
+if (ob_get_level() === 0) {
+    ob_start();
+}
 if (session_status() === PHP_SESSION_NONE) {
     $is_https = (
         (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
@@ -69,7 +72,7 @@ function count_recent_failed_logins(PDO $pdo, string $ip): int {
     try {
         $stmt = $pdo->prepare(
             "SELECT COUNT(*) FROM audit_logs 
-             WHERE action = 'Login Gagal' 
+             WHERE action IN ('Login Gagal', 'LOGIN_FAILED') 
                AND ip_address = ? 
                AND created_at >= (NOW() - INTERVAL 15 MINUTE)"
         );
@@ -98,50 +101,69 @@ function login_admin(PDO $pdo, string $username, string $password): array {
     if ($_SESSION['login_attempts'] >= 5 || $db_failed_count >= 5) {
         return [
             'success' => false,
-            'message' => 'Terlalu banyak percobaan login gagal. Akun/IP dikunci sementara selama 15 menit demi keamanan.'
+            'message' => 'Terlalu banyak percobaan gagal. Akses dikunci sementara selama 15 menit demi keamanan.'
         ];
     }
 
     if ($username === '' || $password === '') {
         return [
             'success' => false,
-            'message' => 'Username dan kata sandi wajib diisi.'
+            'message' => 'ID pengguna dan kata sandi wajib diisi.'
         ];
     }
 
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND status = 'active' LIMIT 1");
-    $stmt->execute([$username]);
-    $user = $stmt->fetch();
+    $user = false;
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = ? OR email = ?) AND status = 'active' LIMIT 1");
+        $stmt->execute([$username, $username]);
+        $user = $stmt->fetch();
+    } catch (Exception $e) {
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM admins WHERE username = ? LIMIT 1");
+            $stmt->execute([$username]);
+            $user = $stmt->fetch();
+            if ($user && empty($user['role'])) {
+                $user['role'] = 'superadmin';
+            }
+        } catch (Exception $e2) {
+            $user = false;
+        }
+    }
 
-    if ($user && password_verify($password, $user['password'])) {
+    if ($user && password_verify($password, (string)$user['password'])) {
         session_regenerate_id(true);
         $_SESSION['admin_logged_in'] = true;
         $_SESSION['admin_id'] = (int)$user['id'];
         $_SESSION['admin_username'] = (string)$user['username'];
-        $_SESSION['admin_name'] = (string)$user['name'];
-        $_SESSION['admin_role'] = (string)$user['role'];
+        $_SESSION['admin_name'] = (string)($user['name'] ?? $user['username']);
+        $_SESSION['admin_role'] = (string)($user['role'] ?? 'superadmin');
         $_SESSION['admin_last_activity'] = time();
+        $_SESSION['last_activity'] = time();
         $_SESSION['admin_ua_hash'] = hash('sha256', (string)($_SERVER['HTTP_USER_AGENT'] ?? 'kgs-ua'));
         $_SESSION['login_attempts'] = 0;
         // Rotasi CSRF token setelah login berhasil
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
         // Update last_login
-        $up = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-        $up->execute([$user['id']]);
+        try {
+            $up = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+            $up->execute([$user['id']]);
+        } catch (Exception $ignore) {}
 
         log_audit($pdo, 'Login Berhasil', "Admin {$user['username']} berhasil masuk ke CMS.");
         return ['success' => true];
     }
 
+    // Jeda progresif untuk memperlambat serangan brute-force otomatis
+    @usleep(250000);
+
     $_SESSION['login_attempts']++;
     $_SESSION['last_attempt_time'] = time();
-    log_audit($pdo, 'Login Gagal', "Percobaan login gagal untuk username: " . mb_substr($username, 0, 50));
+    log_audit($pdo, 'Login Gagal', "Percobaan login gagal untuk input: " . mb_substr($username, 0, 50));
 
-    $remaining = max(0, 5 - max((int)$_SESSION['login_attempts'], $db_failed_count + 1));
     return [
         'success' => false,
-        'message' => "Username atau kata sandi salah. Sisa percobaan: {$remaining}"
+        'message' => 'Kredensial yang Anda masukkan tidak valid.'
     ];
 }
 

@@ -114,9 +114,9 @@ require_once __DIR__ . '/includes/header.php';
                 <span class="text-xs font-bold text-blue-700 uppercase tracking-wide block mb-3">Alamat Kantor</span>
                 <p class="text-xs text-slate-700 leading-relaxed space-y-2">
                     <span class="block">📍 <span data-live-setting="address_palembang"><?= e(get_setting($pdo, 'address_palembang') ?: 'Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113') ?></span></span>
-                    <span class="block">📞 Telp: <span data-live-setting="phone_palembang"><?= e(get_setting($pdo, 'phone_palembang') ?: '0711-316088 (Hunting)') ?></span></span>
+                    <span class="block">📞 Telp: <span data-live-setting="phone_palembang"><?= e(get_setting($pdo, 'phone_palembang') ?: '0711-316088') ?></span></span>
                     <span class="block text-emerald-600 font-semibold">💬 WhatsApp CS: <span data-live-setting="whatsapp"><?= e($cs_whatsapp) ?></span></span>
-                    <span class="block">✉️ Email: <span data-live-setting="email"><?= e(get_setting($pdo, 'email', 'info@kgs.net.id')) ?></span></span>
+                    <span class="block">✉️ Email: <span data-live-setting="email"><?= e(get_setting($pdo, 'email', 'info@creative.co.id')) ?></span></span>
                 </p>
             </div>
 

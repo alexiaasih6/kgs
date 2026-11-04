@@ -6,8 +6,9 @@
 # Prioritaskan index.php sebagai halaman utama
 DirectoryIndex index.php index.html
 
-# Nonaktifkan Directory Listing
+# Nonaktifkan Directory Listing & Server Signature
 Options -Indexes
+ServerSignature Off
 
 # Aktifkan FollowSymLinks
 Options +FollowSymLinks
@@ -18,8 +19,8 @@ AddDefaultCharset UTF-8
 # Halaman Error 404 Kustom (menggunakan path relatif jika diizinkan, atau fallback)
 ErrorDocument 404 404.php
 
-# Blokir akses HTTP langsung ke file sensitif, SQL, Markdown, dan konfigurasi build
-<FilesMatch "^(\.env|\.env\.example|\.gitignore|database\.sql|INSTALL\.md|README\.md|package\.json|bun\.lock|tsconfig\.json|vite\.config\.ts|composer\.json|composer\.lock)$">
+# Blokir akses HTTP langsung ke file sensitif, SQL, JSON state, Markdown, dan konfigurasi build
+<FilesMatch "^(\.env|\.env\.example|\.gitignore|database\.sql|INSTALL\.md|README\.md|package\.json|bun\.lock|tsconfig\.json|vite\.config\.ts|composer\.json|composer\.lock|live-preview-state\.json)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -29,8 +30,8 @@ ErrorDocument 404 404.php
     </IfModule>
 </FilesMatch>
 
-# Blokir file backup / sql / log
-<FilesMatch "\.(sql|bak|old|swp|log|ini|sh)$">
+# Blokir file backup / sql / log / json / lock
+<FilesMatch "\.(sql|bak|old|swp|log|ini|sh|lock|json|md)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -42,18 +43,24 @@ ErrorDocument 404 404.php
 
 # Header Keamanan HTTP
 <IfModule mod_headers.c>
+    Header always unset X-Powered-By
     Header set X-Content-Type-Options "nosniff"
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-XSS-Protection "1; mode=block"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set X-Permitted-Cross-Domain-Policies "none"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
 </IfModule>
 
 # URL Bersih & SEO-Friendly (tetap mendukung pemanggilan .php langsung jika mod_rewrite nonaktif)
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Cegah akses langsung ke folder config/
-    RewriteRule ^config/ - [F,L]
+    # Cegah akses langsung ke folder config/ dan includes/
+    RewriteRule ^(config|includes)/ - [F,L]
+
+    # Defense-in-depth: Blokir eksekusi skrip atau file berbahaya di dalam direktori uploads/
+    RewriteRule ^uploads/.*\.(php\d*|phtml|phar|pl|py|cgi|sh|exe|bat|cmd|svg|html?|js)$ - [F,L,NC]
 
     # Lewati rewrite jika file atau direktori fisik benar-benar ada (CSS, JS, Gambar, Uploads, Admin)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -78,3 +85,44 @@ ErrorDocument 404 404.php
     # Fallback 404 untuk URL yang tidak ditemukan
     RewriteRule ^ 404.php [L]
 </IfModule>
+
+# ==========================================================
+# Optimasi Kecepatan Loading: Kompresi Gzip & Browser Caching
+# (Hanya untuk aset statis; halaman dinamis PHP & Admin CMS tidak di-cache)
+# ==========================================================
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 0 seconds"
+    # Gambar & Ikon
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 month"
+    # CSS, JavaScript & Font
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType text/javascript "access plus 7 days"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    # Jangan pernah menyimpan cache halaman PHP dinamis
+    ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(jpg|jpeg|png|webp|gif|svg|ico|woff|woff2)$">
+        Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=86400"
+    </FilesMatch>
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+    </FilesMatch>
+    <FilesMatch "\.(php)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    </FilesMatch>
+</IfModule>
+

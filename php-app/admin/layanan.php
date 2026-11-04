@@ -13,12 +13,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($action === 'toggle' && $id > 0) {
         $stmt = $pdo->prepare("UPDATE services SET is_published = NOT is_published WHERE id = ?");
         $stmt->execute([$id]);
+        invalidate_live_preview_json('services');
         log_audit($pdo, 'Toggle Layanan', "Mengubah status publikasi layanan ID: $id");
         header("Location: layanan.php?msg=updated");
         exit;
     } elseif ($action === 'delete' && $id > 0) {
         $stmt = $pdo->prepare("DELETE FROM services WHERE id = ?");
         $stmt->execute([$id]);
+        invalidate_live_preview_json('services');
         log_audit($pdo, 'Hapus Layanan', "Menghapus layanan ID: $id");
         header("Location: layanan.php?msg=deleted");
         exit;

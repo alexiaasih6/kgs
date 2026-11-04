@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/config/database.php';
 
@@ -20,58 +21,72 @@ if (substr($clean_cs_wa, 0, 1) === '0') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
-    // Anti-spam Honeypot & Rate Limiting
-    $honeypot = trim($_POST['website_url_hp'] ?? '');
+    // Anti-spam Honeypot & Rate Limiting (Session + IP)
+    $honeypot = trim($_POST['website_url_hp'] ?? ($_POST['website_url'] ?? ''));
     $last_inq_time = (int)($_SESSION['last_inquiry_ts'] ?? 0);
+    $client_ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 
-    $name = trim(strip_tags($_POST['name'] ?? ''));
-    $company = trim(strip_tags($_POST['company'] ?? ''));
-    $email = trim($_POST['email'] ?? '');
-    $phone = trim(strip_tags($_POST['phone'] ?? ''));
-    $service_name = trim(strip_tags($_POST['service_name'] ?? ''));
-    $location = trim(strip_tags($_POST['location'] ?? 'Palembang / Sumatera Selatan'));
-    $message = trim(strip_tags($_POST['message'] ?? ''));
+    $ip_recent_count = 0;
+    try {
+        $stmtRate = $pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE action = 'PUBLIC_INQUIRY_SUBMIT' AND ip_address = ? AND created_at >= (NOW() - INTERVAL 10 MINUTE)");
+        $stmtRate->execute([$client_ip]);
+        $ip_recent_count = (int)$stmtRate->fetchColumn();
+    } catch (Exception $e) {
+        $ip_recent_count = 0;
+    }
+
+    $name         = clean_plain_text(strip_tags($_POST['name'] ?? ''), 100);
+    $company      = clean_plain_text(strip_tags($_POST['company'] ?? ''), 150);
+    $email        = clean_plain_text($_POST['email'] ?? '', 100);
+    $phone        = clean_plain_text(strip_tags($_POST['phone'] ?? ''), 50);
+    $service_name = clean_plain_text(strip_tags($_POST['service_name'] ?? ''), 150);
+    $location     = clean_plain_text(strip_tags($_POST['location'] ?? 'Palembang / Sumatera Selatan'), 100);
+    $message      = clean_plain_text(strip_tags($_POST['message'] ?? ''), 2000);
 
     if ($honeypot !== '') {
         $error = 'Permintaan terdeteksi sebagai spam otomatis.';
-    } elseif (time() - $last_inq_time < 15) {
-        $error = 'Mohon tunggu beberapa detik sebelum mengirim permintaan penawaran kembali.';
-    } elseif (empty($name) || empty($company) || empty($email) || empty($phone) || empty($service_name)) {
+    } elseif (time() - $last_inq_time < 15 || $ip_recent_count >= 5) {
+        $error = 'Terlalu banyak pengiriman dalam waktu singkat. Mohon tunggu beberapa saat sebelum mengirim kembali.';
+    } elseif ($name === '' || $company === '' || $email === '' || $phone === '' || $service_name === '') {
         $error = 'Silakan lengkapi seluruh kolom wajib.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Format alamat email tidak valid.';
+    } elseif (!preg_match('/^[0-9+\-\s()]{7,30}$/', $phone)) {
+        $error = 'Format nomor telepon / WhatsApp tidak valid (gunakan angka 7-30 digit).';
     } else {
         $stmt = $pdo->prepare("INSERT INTO inquiries (name, company, email, phone, service_name, location, message) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$name, $company, $email, $phone, $service_name, $location ?: 'Palembang / Sumatera Selatan', $message]);
-        $_SESSION['last_inquiry_ts'] = time();
-        $success = true;
+        $ok = $stmt->execute([$name, $company, $email, $phone, $service_name, $location ?: 'Palembang / Sumatera Selatan', $message]);
+        if ($ok) {
+            $_SESSION['last_inquiry_ts'] = time();
+            log_audit($pdo, 'PUBLIC_INQUIRY_SUBMIT', "Permintaan penawaran baru dari {$name} ({$company}) - Layanan: {$service_name}");
+            $success = true;
 
-        $wa_msg = "Halo CS *{$company_name}*,\n"
-            . "Saya mengajukan *Permintaan Penawaran & Konsultasi* melalui website resmi:\n\n"
-            . "*Nama Lengkap:* {$name}\n"
-            . "*Perusahaan / Instansi:* {$company}\n"
-            . "*Email Resmi:* {$email}\n"
-            . "*No. Telepon / WA:* {$phone}\n"
-            . "*Kategori Layanan:* {$service_name}\n"
-            . "*Lokasi Proyek / Site:* " . ($location ?: 'Palembang / Sumatera Selatan') . "\n"
-            . "*Catatan Kebutuhan Teknis:* " . ($message ?: '-') . "\n\n"
-            . "Mohon informasi dan tindak lanjut penawarannya. Terima kasih.";
+            $wa_msg = "Halo CS *{$company_name}*,\n"
+                . "Saya mengajukan *Permintaan Penawaran & Konsultasi* melalui website resmi:\n\n"
+                . "*Nama Lengkap:* {$name}\n"
+                . "*Perusahaan / Instansi:* {$company}\n"
+                . "*Email Resmi:* {$email}\n"
+                . "*No. Telepon / WA:* {$phone}\n"
+                . "*Kategori Layanan:* {$service_name}\n"
+                . "*Lokasi Proyek / Site:* " . ($location ?: 'Palembang / Sumatera Selatan') . "\n"
+                . "*Catatan Kebutuhan Teknis:* " . ($message ?: '-') . "\n\n"
+                . "Mohon informasi dan tindak lanjut penawarannya. Terima kasih.";
 
-        $wa_redirect_url = "https://wa.me/{$clean_cs_wa}?text=" . urlencode($wa_msg);
+            $wa_redirect_url = "https://wa.me/{$clean_cs_wa}?text=" . rawurlencode($wa_msg);
+        } else {
+            $error = 'Gagal menyimpan permintaan penawaran. Silakan coba lagi.';
+        }
     }
 }
 
 $services = $pdo->query("SELECT name FROM services WHERE is_published = 1 ORDER BY sort_order ASC")->fetchAll();
 $google_map_raw = trim(get_setting($pdo, 'google_map_input') ?: 'Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113');
-if (strpos($google_map_raw, 'output=embed') !== false || strpos($google_map_raw, 'google.com/maps/embed') !== false) {
-    $map_embed_url = $google_map_raw;
-} else {
-    $map_embed_url = "https://maps.google.com/maps?q=" . urlencode($google_map_raw) . "&t=&z=16&ie=UTF8&iwloc=&output=embed";
-}
+$map_embed_url = get_google_map_embed_url($google_map_raw);
+$map_direct_url = get_google_map_direct_url($google_map_raw);
 
 $kontak_page = get_page_by_slug($pdo, 'kontak');
 $page_title = !empty($kontak_page['meta_title']) ? $kontak_page['meta_title'] : ($kontak_page['title'] ?? "Kontak & Permintaan Penawaran");
-$meta_description = $kontak_page['meta_description'] ?? $kontak_page['summary'] ?? '';
+$page_desc = $kontak_page['meta_description'] ?? $kontak_page['summary'] ?? '';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
@@ -99,17 +114,17 @@ require_once __DIR__ . '/includes/header.php';
                 <span class="text-xs font-bold text-blue-700 uppercase tracking-wide block mb-3">Alamat Kantor</span>
                 <p class="text-xs text-slate-700 leading-relaxed space-y-2">
                     <span class="block">📍 <span data-live-setting="address_palembang"><?= e(get_setting($pdo, 'address_palembang') ?: 'Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113') ?></span></span>
-                    <span class="block">📞 Telp: <span data-live-setting="phone_palembang"><?= e(get_setting($pdo, 'phone_palembang') ?: '0711-316088 (Hunting)') ?></span></span>
+                    <span class="block">📞 Telp: <span data-live-setting="phone_palembang"><?= e(get_setting($pdo, 'phone_palembang') ?: '0711-316088') ?></span></span>
                     <span class="block text-emerald-600 font-semibold">💬 WhatsApp CS: <span data-live-setting="whatsapp"><?= e($cs_whatsapp) ?></span></span>
-                    <span class="block">✉️ Email: <span data-live-setting="email"><?= e(get_setting($pdo, 'email', 'info@kgs.net.id')) ?></span></span>
+                    <span class="block">✉️ Email: <span data-live-setting="email"><?= e(get_setting($pdo, 'email', 'info@creative.co.id')) ?></span></span>
                 </p>
             </div>
 
             <!-- Interactive Google Maps Card -->
-            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div id="peta-lokasi" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                 <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                     <span class="text-xs font-bold text-slate-900">🗺️ Peta Lokasi Google Maps</span>
-                    <a href="https://www.google.com/maps/search/?api=1&query=<?= urlencode($google_map_raw) ?>" target="_blank" rel="noopener noreferrer" class="text-[11px] font-semibold text-blue-600 hover:underline">
+                    <a href="<?= e($map_direct_url) ?>" target="_blank" rel="noopener noreferrer" class="text-[11px] font-semibold text-blue-600 hover:underline">
                         Buka Maps &nearr;
                     </a>
                 </div>
@@ -126,8 +141,8 @@ require_once __DIR__ . '/includes/header.php';
 
             <div class="bg-slate-900 text-white rounded-2xl p-6 shadow-xs text-xs space-y-2">
                 <span class="text-blue-400 font-bold block mb-1">Layanan Daring & Legalitas:</span>
-                <div>Website: www.creative.co.id / www.kgs.net.id</div>
-                <div>Status: Penyelenggara Jasa Internet Resmi (KGSNet) & Anggota APJII</div>
+                <div>Website: <span data-live-setting="website_corporate"><?= e(get_setting($pdo, 'website_corporate', 'www.creative.co.id')) ?></span> / <span data-live-setting="website_isp"><?= e(get_setting($pdo, 'website_isp', 'www.kgs.net.id')) ?></span></div>
+                <div data-live-setting="business_focus">Status: <?= e(get_setting($pdo, 'business_focus', 'Penyelenggara Jasa Internet Resmi (KGSNet) & Anggota APJII')) ?></div>
             </div>
         </div>
 

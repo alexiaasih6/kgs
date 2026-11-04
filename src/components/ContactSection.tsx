@@ -169,40 +169,75 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Official Office Addresses, Channels & Google Maps (5 cols) */}
           <div className="lg:col-span-5 space-y-5">
-            {/* Alamat Kantor */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
-                  Alamat Kantor
+            {/* Alamat Kantor, Email, No. WA & Link WA */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-blue-700 uppercase tracking-wide">
+                  Alamat, Email & Nomor WhatsApp Resmi
                 </span>
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold">
+                <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold">
                   Kantor Operasional Resmi
                 </span>
               </div>
-              <div className="space-y-3 text-xs text-slate-700">
-                <div className="flex items-start gap-3">
+
+              <div className="space-y-3.5 text-xs sm:text-sm text-slate-700">
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                   <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <span>{settings.addressPalembang}</span>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Alamat Kantor:
+                    </div>
+                    <span className="font-semibold text-slate-800">{settings.addressPalembang}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Phone className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>Telp: {settings.phonePalembang}</span>
+
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Email Resmi:
+                    </div>
+                    <a
+                      href={`mailto:${settings.email}`}
+                      className="font-bold text-blue-600 hover:underline"
+                    >
+                      {settings.email}
+                    </a>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <MessageSquare className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>
-                    WhatsApp CS Resmi: <strong className="text-emerald-700">{settings.whatsapp}</strong>
-                  </span>
+
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                  <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                      No. WhatsApp (WA) & Telepon:
+                    </div>
+                    <div className="font-extrabold text-emerald-900 text-sm">
+                      WA: {settings.whatsapp} • Telp: {settings.phonePalembang}
+                    </div>
+                    <a
+                      href={`https://wa.me/${formatWhatsAppNumber(settings.whatsapp)}?text=${encodeURIComponent(
+                        `Halo ${settings.legalName}, saya ingin berkonsultasi mengenai layanan/produk KGS.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2.5 w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold inline-flex items-center justify-center gap-2 shadow-xs transition"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Klik Link WhatsApp Resmi ({settings.whatsapp})</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span>Email: {settings.email}</span>
-                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-900 text-amber-300 border border-slate-800 text-xs font-extrabold leading-relaxed text-center">
+                &ldquo;KGSNet menerima kerjasama kemitraan reseller layanan internet di seluruh Indonesia&rdquo;
               </div>
             </div>
 
             {/* Interactive Google Maps Embed Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div id="peta-lokasi" className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs scroll-mt-28">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/70">
                 <div className="flex items-start gap-2.5 min-w-0">
                   <Navigation className="w-4 h-4 text-blue-600 shrink-0 mt-1" />

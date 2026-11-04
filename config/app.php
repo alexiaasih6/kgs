@@ -29,11 +29,14 @@ date_default_timezone_set('Asia/Jakarta');
 
 // Kirim HTTP Security Headers standar produksi jika dijalankan via web server
 if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    @header_remove('X-Powered-By');
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('X-XSS-Protection: 1; mode=block');
     header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('X-Permitted-Cross-Domain-Policies: none');
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+    header("Content-Security-Policy: frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none';");
 }
 
 // Deteksi Base URL Otomatis (Kompatibel dengan HTTPS, Cloudflare, cPanel, CyberPanel, & Subfolder)

@@ -20,17 +20,17 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
-    $title = trim($_POST['title'] ?? '');
+    $title = clean_plain_text(strip_tags($_POST['title'] ?? ''), 255);
     $category_id = (int)($_POST['category_id'] ?? 0);
-    $summary = trim($_POST['summary'] ?? '');
-    $content = trim($_POST['content'] ?? '');
-    $labels = trim($_POST['labels'] ?? '');
-    $alt_image = trim($_POST['alt_image'] ?? '');
-    $author = trim($_POST['author'] ?? 'Tim Teknis PT. KGS');
+    $summary = clean_plain_text(strip_tags($_POST['summary'] ?? ''), 1000);
+    $content = sanitize_rich_html($_POST['content'] ?? '');
+    $labels = clean_plain_text(strip_tags($_POST['labels'] ?? ''), 255);
+    $alt_image = clean_plain_text(strip_tags($_POST['alt_image'] ?? ''), 255);
+    $author = clean_plain_text(strip_tags($_POST['author'] ?? 'Tim Teknis PT. KGS'), 100);
     $status = ($_POST['status'] ?? 'published') === 'published' ? 'published' : 'draft';
     $is_featured = isset($_POST['is_featured']) ? 1 : 0;
-    $meta_title = trim($_POST['meta_title'] ?? '');
-    $meta_description = trim($_POST['meta_description'] ?? '');
+    $meta_title = clean_plain_text(strip_tags($_POST['meta_title'] ?? ''), 255);
+    $meta_description = clean_plain_text(strip_tags($_POST['meta_description'] ?? ''), 500);
 
     if (empty($title) || empty($summary) || empty($content) || $category_id === 0) {
         $error = 'Judul, kategori, ringkasan, dan isi artikel wajib diisi.';
@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id
             ]);
 
+            invalidate_live_preview_json('posts');
             log_audit($pdo, 'Edit Artikel', "Memperbarui artikel ID $id: $title");
             header("Location: blog.php?msg=updated");
             exit;
@@ -121,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Upload Gambar Sampul & Label Topik -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
             <div class="space-y-2">
-                <label class="block font-bold text-slate-800">Gambar Sampul Artikel (JPG, PNG, WEBP, SVG maks. 2 MB)</label>
+                <label class="block font-bold text-slate-800">Gambar Sampul Artikel (JPG, PNG, WEBP maks. 2 MB)</label>
                 <?php if (!empty($post['featured_image'])): ?>
                     <div class="flex items-center gap-3 mb-2">
                         <img src="../<?= e($post['featured_image']) ?>" alt="Preview" class="w-16 h-12 object-cover rounded border border-slate-300">
@@ -131,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </label>
                     </div>
                 <?php endif; ?>
-                <input type="file" name="featured_image_file" accept=".jpg,.jpeg,.png,.webp,.svg" class="w-full border border-slate-300 rounded-lg p-2 bg-white">
+                <input type="file" name="featured_image_file" accept=".jpg,.jpeg,.png,.webp" class="w-full border border-slate-300 rounded-lg p-2 bg-white">
                 <input type="text" name="alt_image" value="<?= e($post['alt_image'] ?? '') ?>" placeholder="Teks alternatif (Alt Image SEO)" class="w-full border border-slate-300 rounded-lg p-2 bg-white">
             </div>
             <div class="space-y-2">

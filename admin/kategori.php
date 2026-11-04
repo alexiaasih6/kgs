@@ -19,10 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'add' || $action === 'edit') {
         $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $code = trim($_POST['code'] ?? '');
+        $name = clean_plain_text((string)($_POST['name'] ?? ''), 150);
+        $code = preg_replace('/[^a-zA-Z0-9\-_]/', '', strtolower(trim((string)($_POST['code'] ?? '')))) ?? '';
         $segment_number = (int)($_POST['segment_number'] ?? 1);
-        $description = trim($_POST['description'] ?? '');
+        $description = clean_plain_text((string)($_POST['description'] ?? ''), 1000);
         $pdf_page = (int)($_POST['pdf_page'] ?? 4);
 
         if (empty($name) || empty($code)) {
@@ -48,6 +48,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$id]);
         log_audit($pdo, 'Toggle Kategori Layanan', "Mengubah status kategori ID: $id");
         $msg = 'Status kategori berhasil diperbarui.';
+    } elseif ($action === 'delete' && isset($_POST['id'])) {
+        $id = (int)$_POST['id'];
+        $stmt_cnt = $pdo->prepare("SELECT COUNT(*) FROM services WHERE category_id = ?");
+        $stmt_cnt->execute([$id]);
+        $svc_cnt = (int)$stmt_cnt->fetchColumn();
+        if ($svc_cnt > 0) {
+            $error = "Kategori tidak dapat dihapus karena masih memiliki $svc_cnt layanan aktif yang terhubung. Pindahkan atau hapus layanan pada kategori ini terlebih dahulu.";
+        } else {
+            $stmt_del = $pdo->prepare("DELETE FROM service_categories WHERE id = ?");
+            $stmt_del->execute([$id]);
+            log_audit($pdo, 'Hapus Kategori Layanan', "Menghapus kategori layanan ID: $id");
+            $msg = 'Kategori segmen layanan berhasil dihapus.';
+            if ($edit_id === $id) {
+                $edit_id = 0;
+                $edit_data = null;
+            }
+        }
     }
 }
 
@@ -151,9 +168,19 @@ $categories = $pdo->query("SELECT c.*, (SELECT COUNT(*) FROM services s WHERE s.
                             </form>
                         </td>
                         <td class="p-3.5 text-right">
-                            <a href="kategori.php?edit_id=<?= (int)$cat['id'] ?>" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg font-semibold text-[11px]">
-                                Edit
-                            </a>
+                            <div class="inline-flex items-center gap-1.5">
+                                <a href="kategori.php?edit_id=<?= (int)$cat['id'] ?>" class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg font-semibold text-[11px]">
+                                    Edit
+                                </a>
+                                <form method="POST" onsubmit="return confirm('Hapus kategori segmen ini?');" class="inline">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="id" value="<?= (int)$cat['id'] ?>">
+                                    <button type="submit" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg font-semibold text-[11px] cursor-pointer">
+                                        Hapus
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>

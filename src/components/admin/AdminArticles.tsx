@@ -18,8 +18,10 @@ import {
   Check,
   Layers,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  FolderOpen
 } from 'lucide-react';
+import { MediaLibraryPickerModal, recordUploadedMedia } from './MediaLibraryPickerModal';
 
 interface AdminArticlesProps {
   articles: ArticleItem[];
@@ -80,6 +82,7 @@ export const AdminArticles: React.FC<AdminArticlesProps> = ({
   });
 
   const [newTagInput, setNewTagInput] = useState('');
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
 
   const filtered = articles.filter(a => {
     const matchSearch =
@@ -132,6 +135,13 @@ export const AdminArticles: React.FC<AdminArticlesProps> = ({
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
+      const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ');
+      recordUploadedMedia(
+        result,
+        formData.title || baseName,
+        'Artikel & Berita',
+        file.name
+      );
       setFormData(prev => ({ ...prev, imageUrl: result }));
     };
     reader.readAsDataURL(file);
@@ -606,7 +616,7 @@ export const AdminArticles: React.FC<AdminArticlesProps> = ({
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <label className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition shadow-xs">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Foto dari Perangkat</span>
+                    <span>Choose File / Upload Foto</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -614,6 +624,15 @@ export const AdminArticles: React.FC<AdminArticlesProps> = ({
                       className="hidden"
                     />
                   </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMediaPickerOpen(true)}
+                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition shadow-xs"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>🖼️ Pilih dari Media &amp; Upload Gambar</span>
+                  </button>
 
                   <input
                     type="url"
@@ -869,6 +888,16 @@ export const AdminArticles: React.FC<AdminArticlesProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Pilih dari Media & Upload Gambar */}
+      <MediaLibraryPickerModal
+        isOpen={isMediaPickerOpen}
+        onClose={() => setIsMediaPickerOpen(false)}
+        title="Pilih Cover Artikel dari Media & Upload Gambar"
+        onSelect={item => {
+          setFormData(prev => ({ ...prev, imageUrl: item.url }));
+        }}
+      />
     </div>
   );
 };

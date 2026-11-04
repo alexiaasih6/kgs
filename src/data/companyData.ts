@@ -32,6 +32,19 @@ export interface ClientItem {
   location?: string;
   serviceCategory: string;
   pdfPage: number;
+  imageUrl?: string;
+  logoUrl?: string;
+  websiteUrl?: string;
+  description?: string;
+}
+
+export interface PortfolioImageItem {
+  id: string;
+  imageUrl: string;
+  caption: string;
+  altText?: string;
+  sortOrder: number;
+  isPrimary?: boolean;
 }
 
 export interface ProjectPhoto {
@@ -42,6 +55,7 @@ export interface ProjectPhoto {
   category: string;
   pdfPage?: number;
   imageUrl?: string;
+  images?: PortfolioImageItem[];
 }
 
 export interface CertificationItem {
@@ -51,6 +65,10 @@ export interface CertificationItem {
   holder: string;
   yearOrValidity?: string;
   pdfPage: number;
+  badgeCode?: string;
+  description?: string;
+  logoUrl?: string;
+  linkUrl?: string;
 }
 
 export interface PartnerItem {
@@ -59,6 +77,50 @@ export interface PartnerItem {
   role: string;
   serviceType: string;
   pdfPage: number;
+  logoUrl?: string;
+  linkUrl?: string;
+}
+
+export interface FooterCertBadgeItem {
+  label: string;
+  url: string;
+  logo: string;
+}
+
+export function parseFooterCertBadges(raw?: string): FooterCertBadgeItem[] {
+  const source =
+    (raw || '').trim() ||
+    'APJII Official Member :: https://apjii.or.id | KGSNet ISP Resmi :: https://www.kgs.net.id | Panasonic Authorized | NETVIEL Certified';
+  const chunks = source
+    .split(/[|\n]+/)
+    .map(c => c.trim())
+    .filter(Boolean);
+  const items: FooterCertBadgeItem[] = [];
+  for (const chunk of chunks) {
+    const parts = chunk.split('::').map(p => p.trim());
+    const label = parts[0] || '';
+    if (!label) continue;
+    items.push({
+      label,
+      url: parts[1] || '',
+      logo: parts[2] || ''
+    });
+  }
+  return items;
+}
+
+export function serializeFooterCertBadges(items: FooterCertBadgeItem[]): string {
+  return items
+    .filter(i => i.label.trim() !== '')
+    .map(i => {
+      const label = i.label.trim();
+      const url = (i.url || '').trim();
+      const logo = (i.logo || '').trim();
+      if (logo) return `${label} :: ${url || '#'} :: ${logo}`;
+      if (url) return `${label} :: ${url}`;
+      return label;
+    })
+    .join(' | ');
 }
 
 export interface InquiryNote {
@@ -146,6 +208,10 @@ export interface HeroNocNodeItem {
 export interface CompanySettings {
   legalName: string;
   slogan: string;
+  companyNameColor?: string;
+  sloganColor?: string;
+  logoBgColor?: string;
+  logoTextColor?: string;
   phonePalembang: string;
   whatsapp: string;
   email: string;
@@ -170,6 +236,9 @@ export interface CompanySettings {
   footerCertBadges?: string;
   footerCertCardTitle?: string;
   footerCertCardStatus?: string;
+  footerShowCertSection?: boolean;
+  footerShowCertStatus?: boolean;
+  footerShowCertBadges?: boolean;
   copyrightText?: string;
   heroBadgeText?: string;
   heroCtaPrimary?: string;
@@ -187,14 +256,150 @@ export interface CompanySettings {
   pricingBannerCta?: string;
   faqSupportTitle?: string;
   faqSupportDesc?: string;
+  // Global SEO & Website Ownership Verification (Google Search Console HTML & TXT, Bing, Yandex, Meta, Schema.org)
+  seoDefaultMetaTitle?: string;
+  seoDefaultMetaDesc?: string;
+  seoMetaKeywords?: string;
+  seoAuthor?: string;
+  seoTitleSeparator?: string;
+  seoCanonicalBase?: string;
+  seoRobots?: string;
+  seoGooglebot?: string;
+  seoGoogleVerification?: string;
+  seoSearchConsoleTxt?: string;
+  seoBingVerification?: string;
+  seoYandexVerification?: string;
+  seoFbDomainVerification?: string;
+  seoPinterestVerification?: string;
+  seoOgType?: string;
+  seoOgSiteName?: string;
+  seoOgImage?: string;
+  seoTwitterCard?: string;
+  seoTwitterSite?: string;
+  seoGeoRegion?: string;
+  seoGeoPlacename?: string;
+  seoGeoPosition?: string;
+  seoSchemaType?: string;
+  seoSchemaFoundingYear?: string;
+  seoSchemaPriceRange?: string;
+  seoGoogleAnalyticsId?: string;
+  // Social Media Links in Footer ("Alamat Kantor & Kontak")
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialLinkedin?: string;
+  socialYoutube?: string;
+  socialTiktok?: string;
+  socialWhatsapp?: string;
+  socialLinks?: SocialMediaLinkItem[];
+  // Footer Quick Access Links ("Informasi & Akses Cepat")
+  footerQuick1Label?: string;
+  footerQuick1Url?: string;
+  footerQuick2Label?: string;
+  footerQuick2Url?: string;
+  footerQuick3Label?: string;
+  footerQuick3Url?: string;
+  footerQuick4Label?: string;
+  footerQuick4Url?: string;
+  footerQuick5Label?: string;
+  footerQuick5Url?: string;
 }
+
+export interface SocialMediaLinkItem {
+  id: string;
+  platform: string;
+  url: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export function getEffectiveSocialLinks(settings: CompanySettings): SocialMediaLinkItem[] {
+  const waRaw = (settings.whatsapp || '0811-782119').replace(/\D/g, '').replace(/^0/, '62');
+  const defaultMap: Record<string, string> = {
+    facebook: 'https://facebook.com/kgs.palembang',
+    instagram: 'https://instagram.com/kgs.palembang',
+    linkedin: 'https://linkedin.com/company/kreatif-global-solusindo',
+    youtube: 'https://youtube.com/@kreatifglobalsolusindo',
+    tiktok: 'https://tiktok.com/@kgs.palembang',
+    whatsapp: `https://wa.me/${waRaw}`
+  };
+
+  if (Array.isArray(settings.socialLinks) && settings.socialLinks.length > 0) {
+    return [...settings.socialLinks]
+      .map((item, idx) => {
+        const key = (item.platform || '').trim().toLowerCase();
+        const rawUrl = (item.url || '').trim();
+        const resolvedUrl =
+          rawUrl && rawUrl !== '#' && /^https?:\/\//i.test(rawUrl)
+            ? rawUrl
+            : defaultMap[key] || 'https://www.creative.co.id';
+        return {
+          ...item,
+          url: resolvedUrl,
+          isActive: item.isActive !== false,
+          sortOrder: item.sortOrder || idx + 1
+        };
+      })
+      .sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+  }
+
+  const pickUrl = (val: string | undefined, fallback: string) => {
+    const clean = (val || '').trim();
+    return clean && clean !== '#' && /^https?:\/\//i.test(clean) ? clean : fallback;
+  };
+
+  return [
+    {
+      id: 'soc-fb',
+      platform: 'Facebook',
+      url: pickUrl(settings.socialFacebook, defaultMap.facebook),
+      isActive: true,
+      sortOrder: 1,
+    },
+    {
+      id: 'soc-ig',
+      platform: 'Instagram',
+      url: pickUrl(settings.socialInstagram, defaultMap.instagram),
+      isActive: true,
+      sortOrder: 2,
+    },
+    {
+      id: 'soc-in',
+      platform: 'LinkedIn',
+      url: pickUrl(settings.socialLinkedin, defaultMap.linkedin),
+      isActive: true,
+      sortOrder: 3,
+    },
+    {
+      id: 'soc-yt',
+      platform: 'YouTube',
+      url: pickUrl(settings.socialYoutube, defaultMap.youtube),
+      isActive: true,
+      sortOrder: 4,
+    },
+    {
+      id: 'soc-tt',
+      platform: 'TikTok',
+      url: pickUrl(settings.socialTiktok, defaultMap.tiktok),
+      isActive: true,
+      sortOrder: 5,
+    },
+    {
+      id: 'soc-wa',
+      platform: 'WhatsApp',
+      url: pickUrl(settings.socialWhatsapp, defaultMap.whatsapp),
+      isActive: true,
+      sortOrder: 6,
+    },
+  ];
+}
+
 
 export const COMPANY_INFO = {
   legalName: "PT. KREATIF GLOBAL SOLUSINDO",
   shortName: "PT. KGS",
   brandName: "Creative Com / KGS",
-  slogan: "Your Solution & Partner",
-  businessFocus: "System Integrator, Security Solution & Internet Service Provider",
+  slogan: "System Integrator, Security Solution & Internet Provider",
+  businessFocus: "System Integrator, Security Solution & Internet Provider",
   ispProduct: "KGSNet",
   apjiiMember: true,
   establishedYear: 1997,
@@ -202,21 +407,91 @@ export const COMPANY_INFO = {
   ispLicenseYear: 2020,
   officePalembang: {
     address: "Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113",
-    phone: "0711-316088 (Hunting)",
+    phone: "0711-316088",
     whatsapp: "0811-782119",
     whatsappRaw: "62811782119",
-    email: "info@kgs.net.id",
+    email: "info@creative.co.id",
     website: "www.creative.co.id / www.kgs.net.id"
   },
-  vision: "Menjadi perusahaan yang terdepan dan terpercaya serta mampu memberikan layanan yang baik dan berkualitas. Mampu memberikan solusi yang tepat sesuai dengan kebutuhan konsumen.",
-  mission: "Membangun, mengembangkan dan meningkatkan kemandirian melalui semangat kerja dan kreatifitas yang tinggi kepada setiap tim sehingga hasil yang dicapai berdampak positif bagi kemajuan dan kesejahteraan tim Creative Com (KGS) pada khususnya serta masyarakat luas pada umumnya.",
-  culture: "Mengembangkan budaya kerja yang mandiri, kreatif, dan profesional serta didukung pola hubungan kerja yang positif atas azas kekeluargaan. Menganut model organisasi fungsional, setiap orang adalah bagian dari Tim yang menjalankan tugasnya berdasarkan deskripsi fungsi. Tidak tergantung perintah dan hirarki, setiap orang bebas berinisiatif.",
-  commitment: "Kami percaya, kepuasan pelanggan diperoleh dari penyelesaian masalah secara konstruktif, cepat dan tepat. Tugas kami memberikan solusi dan layanan terbaik sesuai kondisi setiap pelanggan. Kepuasan Pelanggan adalah target utama dan promosi yang efektif."
+  profile: "Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo. Dengan didukung team teknisi yang terlatih dan berpengalaman, melayani berbagai kebutuhan masyarakat, baik perseorangan maupun kebutuhan kantor.",
+  vision: "Menjadi perusahaan yang terdepan dan terpecaya serta mampu memberikan layanan yang baik dan berkualitas tinggi serta terjangkau oleh pasar, baik lokal maupun regional. Mampu memberikan solusi yang tepat kepada konsumen sesuai dengan kebutuhan konsumen. Misi kami membangun, mengembangkan dan meningkatkan kemandirian melalui semangat kewirausahaan yang tinggi baik secara internal maupun eksternal sehingga memberikan dampak yang positif bagi kemajuan perekonomian masyarakat umumnya dan kepada anggota team Creative pada khususnya.",
+  mission: "Misi kami membangun, mengembangkan dan meningkatkan kemandirian melalui semangat kewirausahaan yang tinggi baik secara internal maupun eksternal sehingga memberikan dampak yang positif bagi kemajuan perekonomian masyarakat umumnya dan kepada anggota team Creative pada khususnya.",
+  culture: "Mengembangkan budaya kerja yang mandiri, kreatif, dan profesional serta didukung pola hubungan kerja yang positif atas azas kekeluargaan. Menganut model organisasi fungsional, setiap orang adalah bagian dari Tim yang menjalankan tugasnya berdasarkan deskripsi fungsi. Tidak tergantung perintah dan hirarki, setiap orang bebas berinisiatif. Lingkungan mendukung setiap orang mencapai prestasi terbaik. Tim memberikan dorongan, stimulasi dan motivasi dalam orientasi pelaksanaan tugas secara efektif dan konstruktif. Tujuan tim meningkatkan produktifitas dan hasil maksimal kepada pelanggan.",
+  commitment: "Kami percaya, kepuasan pelanggan diperoleh dari penyelesaian masalah secara konstruktif, cepat dan tepat. Tugas kami memberikan solusi dan layanan terbaik sesuai kondisi setiap pelanggan. Kepuasan Pelanggan adalah target utama dan promosi yang efektif.",
+  clientPortfolioIntro1: "Sejak 1997, banyak pekerjaan yang telah dilakukan, baik terhadap konsumen perorangan, badan usaha, instansi pemerintah maupun BUMN. Ruang layanan pun tidak terbatas di kota Palembang, melainkan juga sampai seluruh kabupaten/kota di provinsi Sumatera Selatan hingga keprovinsi lain seperti Bangka Belitung, Jambi, Riau, Sumatera Barat, Sumatera Utara, Lampung, Bengkulu, Kalimantan Barat, Kalimantan Timur, Bekasi dan Jakarta.",
+  clientPortfolioIntro2: "Polahubungan yang sehat tidak saja dikembangkan dalam lingkungan internal, namun juga terhadap lingkungan eksternal. Pesaing tidak dianggap sebagai pesaing, melainkan sebagai mitra atau partner. Client atau konsumen tidak dianggap sebagai objek, melainkan sebagai Stakeholders. Karena dengan dukungan dari rekan konsumenlah, perusahaan dapat bertahan dan berkembang hingga saat ini. Halaman berikut, adalah beberapa client dan pekerjaan sesuai keahlian yang telah dikerjakan ;"
 };
+
+export const ISP_LEGALITAS = [
+  "Izin Penyelenggaraan Jasa Telekomunikasi Kominfo RI Nomor ; 674/TEL.02.02/2020 tanggal 19 Agustus 2020,",
+  "Surat Keterangan Laik Operasi Kominfo RI Nomor ; 375/TEL.04.02/2020 tanggal 27 Oktober 2020,",
+  "NIB (Nomor Induk Berusaha) ; 9120202100598."
+];
+
+export interface IspSegmentTier {
+  speed: string;
+  price: string;
+  note: string;
+}
+
+export interface IspSegmentGroup {
+  id: string;
+  name: string;
+  badge: string;
+  description: string;
+  tiers: IspSegmentTier[];
+}
+
+export const ISP_SEGMENTS_DATA: IspSegmentGroup[] = [
+  {
+    id: "isp-dedicated",
+    name: "Internet Dedicated",
+    badge: "Segmen 1 · Dedicated 1:1",
+    description: "Layanan internet dedicated simetris dengan jaminan SLA tinggi untuk UMKM, Sekolah, dan Corporate.",
+    tiers: [
+      { speed: "10 Mbps", price: "Harga Perbulan mulai 3.500.000", note: "Kebutuhan UMKM" },
+      { speed: "10 Mbps", price: "Harga Perbulan mulai 1.750.000", note: "Kebutuhan Sekolah" },
+      { speed: "10 Mbps", price: "Harga Perbulan mulai 1.750.000", note: "Kebutuhan Corporate" }
+    ]
+  },
+  {
+    id: "isp-bisnis",
+    name: "Internet Bisnis",
+    badge: "Segmen 2 · Business Broadband",
+    description: "Koneksi internet cepat dan stabil untuk menunjang produktivitas operasional bisnis dan kantor.",
+    tiers: [
+      { speed: "10 Mbps", price: "Rp. 407.000 / bulan", note: "Paket Internet Bisnis" },
+      { speed: "20 Mbps", price: "Rp. 431.000 / bulan", note: "Paket Internet Bisnis" },
+      { speed: "30 Mbps", price: "Rp. 453.000 / bulan", note: "Paket Internet Bisnis" },
+      { speed: "40 Mbps", price: "Rp. 477.000 / bulan", note: "Paket Internet Bisnis" },
+      { speed: "50 Mbps", price: "Rp. 511.000 / bulan", note: "Paket Internet Bisnis" },
+      { speed: "100 Mbps", price: "Rp. 1.050.000 / bulan", note: "Paket Internet Bisnis" },
+      { speed: "200 Mbps", price: "Rp. 1.560.000 / bulan", note: "Paket Internet Bisnis" }
+    ]
+  },
+  {
+    id: "isp-home",
+    name: "Home Internet",
+    badge: "Segmen 3 · Residential & Home",
+    description: "Koneksi internet rumah tangga tanpa kuota yang nyaman untuk streaming, belajar, dan kerja dari rumah.",
+    tiers: [
+      { speed: "10 Mbps", price: "Rp. 252.000 / bulan", note: "Optiman di 5 Perangkat" },
+      { speed: "20 Mbps", price: "Rp. 276.000 / bulan", note: "Optiman di 7 Perangkat" },
+      { speed: "30 Mbps", price: "Rp. 298.000 / bulan", note: "Optiman di 9 Perangkat" },
+      { speed: "50 Mbps", price: "Rp. 450.000 / bulan", note: "Optiman di 12 Perangkat" },
+      { speed: "100 Mbps", price: "Rp. 710.000 / bulan", note: "Optiman di 15 Perangkat" },
+      { speed: "200 Mbps", price: "Rp. 1.100.000 / bulan", note: "Optiman di 20 Perangkat" }
+    ]
+  }
+];
 
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   legalName: COMPANY_INFO.legalName,
   slogan: COMPANY_INFO.slogan,
+  companyNameColor: '#0f172a',
+  sloganColor: '#2563eb',
+  logoBgColor: '#2563eb',
+  logoTextColor: '#ffffff',
   phonePalembang: COMPANY_INFO.officePalembang.phone,
   whatsapp: COMPANY_INFO.officePalembang.whatsapp,
   email: COMPANY_INFO.officePalembang.email,
@@ -231,7 +506,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   operationalHours: "Senin - Sabtu: 08:00 - 17:00 WIB (NOC 24/7)",
   footerLogo: "",
   footerBrandLabel: "KGSNET",
-  footerDescription: "Creative Com berdiri sejak tahun 1997 di Palembang (CV. Creative) dan bertransformasi menjadi PT. Kreatif Global Solusindo pada tahun 2013. Menyediakan solusi terintegrasi IT, Telekomunikasi, CCTV, Tower, Penangkal Petir, serta layanan ISP resmi KGSNet.",
+  footerDescription: "Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo. Dengan didukung team teknisi yang terlatih dan berpengalaman, melayani berbagai kebutuhan masyarakat, baik perseorangan maupun kebutuhan kantor.",
   footerContactHeading: "Alamat Kantor & Kontak",
   footerAddressLabel: "Alamat Kantor:",
   footerNavHeading: "Navigasi Halaman",
@@ -240,22 +515,25 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   footerCertBadges: "APJII Official Member | KGSNet ISP Resmi | Panasonic Authorized | NETVIEL Certified",
   footerCertCardTitle: "Sertifikasi & Keanggotaan Resmi",
   footerCertCardStatus: "✓ Terverifikasi & Berlisensi Resmi",
+  footerShowCertSection: true,
+  footerShowCertStatus: true,
+  footerShowCertBadges: true,
   copyrightText: "© 2026 KGSNET — Creative.co.id. All Rights Reserved.",
   heroBadgeText: "PT. KREATIF GLOBAL SOLUSINDO · SYSTEM INTEGRATOR & ISP",
   heroCtaPrimary: "Konsultasi Sekarang",
-  heroCtaSecondary: "Lihat Paket B2B",
-  heroCtaTertiary: "5 Segmen Layanan →",
+  heroCtaSecondary: "Lihat Paket Internet",
+  heroCtaTertiary: "Product & Service →",
   heroHighlights: [
     "Anggota APJII",
-    "SLA 99.5% Uptime",
-    "Grounding < 2 Ohm",
-    "NOC Siaga 24/7"
+    "Kominfo 674/TEL.02.02/2020",
+    "SKLO 375/TEL.04.02/2020",
+    "NIB 9120202100598"
   ],
   heroStats: [
     { value: "1997", label: "Awal Berdiri (Creative Com)" },
-    { value: "5 Segmen", label: "Layanan Solusi Terintegrasi" },
+    { value: "5 Kategori", label: "Product & Service Terintegrasi" },
     { value: "100+", label: "Klien BUMN, Swasta & Instansi" },
-    { value: "< 2 Ω", label: "Standar Grounding & Proteksi" }
+    { value: "3 Segmen", label: "Dedicated, Bisnis & Home ISP" }
   ],
   nocStatusLabel: "KGS NOC OPERATIONS ONLINE",
   nocCardTitle: "KGSNet Backbone & Router BGP",
@@ -282,7 +560,48 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   pricingBannerDesc: "Tim engineer bersertifikasi PT. KGS siap melakukan survei lokasi on-site gratis (uji Line-of-Sight, grounding test tanah, dan topologi FO) untuk pengadaan resmi instansi Anda.",
   pricingBannerCta: "Jadwalkan Survei & Konsultasi",
   faqSupportTitle: "Punya pertanyaan teknis lain yang belum tercantum?",
-  faqSupportDesc: "Tim support & sales engineering KGS siap berdiskusi secara langsung melalui telepon kantor atau WhatsApp resmi."
+  faqSupportDesc: "Tim support & sales engineering KGS siap berdiskusi secara langsung melalui telepon kantor atau WhatsApp resmi.",
+  seoDefaultMetaTitle: "PT. Kreatif Global Solusindo - System Integrator, Security Solution & Internet Provider",
+  seoDefaultMetaDesc: "Creative Com / PT. Kreatif Global Solusindo: System Integrator, Security Solution (Fire & Alarm Security, CCTV, Access Door, Video Door Phone), Networking, PBX, Telecommunication, Tower & Internet Service Provider (KGSNet) di Palembang.",
+  seoMetaKeywords: "ISP Palembang, KGSNet, Kontraktor Tower Palembang, Penangkal Petir Grounding, CCTV Palembang, Fiber Optik, PABX Panasonic, PT Kreatif Global Solusindo",
+  seoAuthor: "PT. Kreatif Global Solusindo (KGSNet)",
+  seoTitleSeparator: "|",
+  seoCanonicalBase: "https://www.kgs.net.id",
+  seoRobots: "index, follow",
+  seoGooglebot: "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1",
+  seoGoogleVerification: "",
+  seoSearchConsoleTxt: "",
+  seoBingVerification: "",
+  seoYandexVerification: "",
+  seoFbDomainVerification: "",
+  seoPinterestVerification: "",
+  seoOgType: "website",
+  seoOgSiteName: "PT. Kreatif Global Solusindo (KGSNet)",
+  seoOgImage: "",
+  seoTwitterCard: "summary_large_image",
+  seoTwitterSite: "@kgsnet_id",
+  seoGeoRegion: "ID-SS",
+  seoGeoPlacename: "Palembang, Sumatera Selatan",
+  seoGeoPosition: "-2.9718;104.7644",
+  seoSchemaType: "Organization",
+  seoSchemaFoundingYear: "1997",
+  seoSchemaPriceRange: "$$$",
+  seoGoogleAnalyticsId: "",
+  socialFacebook: "https://facebook.com/kgs.palembang",
+  socialInstagram: "https://instagram.com/kgs.palembang",
+  socialLinkedin: "https://linkedin.com/company/kreatif-global-solusindo",
+  socialYoutube: "https://youtube.com/@kreatifglobalsolusindo",
+  socialTiktok: "https://tiktok.com/@kgs.palembang",
+  footerQuick1Label: "Kebijakan Privasi & SLA",
+  footerQuick1Url: "kebijakan-privasi.php",
+  footerQuick2Label: "3 Segmen Paket Internet ISP",
+  footerQuick2Url: "harga.php",
+  footerQuick3Label: "Pertanyaan Umum (FAQ)",
+  footerQuick3Url: "faq.php",
+  footerQuick4Label: "Minta Penawaran / Survei",
+  footerQuick4Url: "kontak.php#konsultasi",
+  footerQuick5Label: "Peta Lokasi Google Maps",
+  footerQuick5Url: "kontak.php#peta-lokasi"
 };
 
 export function formatWhatsAppNumber(rawPhone: string): string {
@@ -340,537 +659,268 @@ export function buildGoogleMapDirectLink(input?: string): string {
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
   {
-    id: "cat_comp_net",
+    id: "cat_networking",
     segmentNumber: 1,
-    name: "Computer & Networking",
-    description: "Pengadaan perangkat komputasi, instalasi jaringan kabel/nirkabel, fiber optik, dan perbaikan perangkat.",
+    name: "Data Networking",
+    description: "Perancangan, instalasi, dan manajemen infrastruktur jaringan komputer (LAN/WAN), penarikan & terminasi kabel Fiber Optic (OTDR), konfigurasi Router/Switch Enterprise (MikroTik/Cisco), serta interkoneksi Wireless Point-to-Point & Point-to-Multipoint antar gedung, pabrik, dan kebun.",
     pdfPage: 4
   },
   {
-    id: "cat_telecom",
+    id: "cat_radio",
     segmentNumber: 2,
-    name: "Telecommunication",
-    description: "Sistem komunikasi suara & data terintegrasi PABX/IP-PBX, radio komunikasi RIG/HT/SSB, dan radiolink.",
+    name: "Radio Komunikasi (Repeater, HT, RIG)",
+    description: "Penyediaan, instalasi, dan tuning frekuensi perangkat Radio Komunikasi dua arah: Stasiun Pengulang Sinyal (Repeater VHF/UHF), Handy Talky (HT), Base/Mobile RIG, radio SSB, Marine Radio/AIS, beserta fabrikasi & ereksi Tower Triangle/Monopole dan sistem Penangkal Petir (< 2 Ohm).",
     pdfPage: 4
   },
   {
-    id: "cat_cctv_sec",
+    id: "cat_pabx",
     segmentNumber: 3,
-    name: "Video Surveillance / CCTV",
-    description: "Sistem pengawasan kamera keamanan Analog maupun IP Network Camera dan akses kontrol pintu.",
+    name: "PABX",
+    description: "Instalasi, pemrograman, dan peremajaan sistem sentral telekomunikasi telepon kantor dan korporasi meliputi Analogue PBX, Hybrid PBX, hingga IP-PBX berbasis SIP/VoIP antar cabang beserta Telephone Billing System.",
+    pdfPage: 4
+  },
+  {
+    id: "cat_cctv",
+    segmentNumber: 4,
+    name: "CCTV",
+    description: "Pemasangan dan integrasi sistem kamera pengawas keamanan (Closed Circuit Television) Analog HD maupun IP Network Camera beresolusi tinggi, PTZ Camera, NVR/DVR Central Monitoring Room, serta proteksi Arrester CCTV outdoor & indoor.",
+    pdfPage: 4
+  },
+  {
+    id: "cat_access",
+    segmentNumber: 5,
+    name: "Access Door",
+    description: "Sistem pengaman dan pembatas akses pintu elektronik (Door Access Control) berbasis Biometrik Sidik Jari, Face Recognition, Kartu RFID Proximity/Mifare, PIN Keypad, Magnetic Lock/Drop Bolt, serta interkom Video Door Phone.",
+    pdfPage: 4
+  },
+  {
+    id: "cat_fire",
+    segmentNumber: 6,
+    name: "Fire Alarm, Public Address & Nursecall",
+    description: "Instalasi sistem deteksi dini bahaya kebakaran (MCFA, Smoke & Heat Detector, Hydrant/Bell), tata suara pengumuman & evakuasi gedung (Public Address / Paging Sound System & Conference), serta sistem panggilan darurat perawat rumah sakit (Nurse Call System).",
     pdfPage: 4
   },
   {
     id: "cat_isp",
-    segmentNumber: 4,
+    segmentNumber: 7,
     name: "Internet Service Provider",
-    description: "Layanan koneksi internet korporat via Wireless & Fiber Optic (KGSNet), hosting, server colo & cloud.",
-    pdfPage: 4
-  },
-  {
-    id: "cat_another_service",
-    segmentNumber: 5,
-    name: "Another Service",
-    description: "Solusi terintegrasi meliputi video conference, penangkal petir, fabrikasi tower, alarm kebakaran, dan AIS.",
+    description: "Layanan koneksi internet berizin resmi Kominfo RI & APJII (KGSNet) untuk 3 Segmen (Internet Dedicated, Internet Bisnis, Home Internet). KGSNet menerima kerjasama kemitraan reseller layanan internet di seluruh Indonesia.",
     pdfPage: 4
   }
 ];
 
-// Complete inventory of KGS Official Services
+// Complete inventory of KGS Official Product & Service grouped into the 7 Bidang Pekerjaan
 export const SERVICES_DATA: ServiceItem[] = [
-  // Computer & Networking
+  // 1. Data Networking
   {
-    id: "srv-comp-01",
-    categoryId: "cat_comp_net",
-    categoryName: "Computer & Networking",
-    name: "PC Desktop, Notebook, Printer, Scanner & Aksesoris",
-    slug: "pc-desktop-notebook-printer-scanner",
-    summary: "Pengadaan komputer desktop, laptop/notebook, printer, scanner, dan aksesoris komputer bergaransi resmi.",
-    description: "Layanan pengadaan unit PC Desktop, laptop / notebook, printer, scanner serta berbagai perlengkapan aksesoris komputer untuk kebutuhan perkantoran, instansi pemerintah, BUMN, perbankan, dan sektor industri.",
+    id: "srv-net-01",
+    categoryId: "cat_networking",
+    categoryName: "Data Networking",
+    name: "Infrastruktur LAN, WAN & Fiber Optic Backbone",
+    slug: "infrastruktur-lan-wan-fiber-optic",
+    summary: "Instalasi jaringan kabel terstruktur UTP Cat6/Cat6A dan penarikan Fiber Optic Singlemode/Multimode lengkap dengan splicing & uji OTDR.",
+    description: "Layanan perancangan dan implementasi infrastruktur jaringan data terpadu untuk gedung bertingkat, rumah sakit, kampus, dan kawasan pabrik industri. Mencakup penarikan kabel Fiber Optic udara/tanah, pemasangan OTB/Patch Panel, terminasi fusion splicing, pengujian redaman OTDR, serta penataan Rack Server.",
     features: [
-      "Pengadaan PC Desktop & Notebook kantor dan industri",
-      "Perangkat cetak Printer & Scanner dokumen",
-      "Aksesoris dan periferal komputasi lengkap",
-      "Instalasi sistem operasi & aplikasi kerja"
+      "Penarikan & terminasi Fiber Optic Backbone (Splicing & OTDR Test)",
+      "Structured Cabling LAN UTP/STP Cat6 & Cat6A bersertifikasi NETVIEL",
+      "Instalasi Rack Server, Patch Panel & Manajemen Kabel Rapi",
+      "Dokumentasi topologi jaringan & Fluke/LAN Qualification Test"
     ],
-    brands: ["Acer", "HP", "Epson", "Canon", "Datascrip"],
-    targetSectors: ["Instansi Pemerintah", "BUMN", "Perbankan", "Pendidikan", "Perusahaan Swasta"],
+    brands: ["NETVIEL", "Beldon", "CommScope", "AMP", "MikroTik", "Cisco"],
+    targetSectors: ["Pabrik & Kawasan Industri", "Rumah Sakit", "Kampus & Sekolah", "Perbankan & Instansi"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 1 - Data Networking",
     isPublished: true,
     order: 1
   },
   {
-    id: "srv-comp-02",
-    categoryId: "cat_comp_net",
-    categoryName: "Computer & Networking",
-    name: "Instalasi LAN, Wireless LAN, Internet Connection & HotSpot Area",
-    slug: "instalasi-lan-wireless-lan-hotspot",
-    summary: "Perancangan dan penarikan kabel LAN UTP/STP, konfigurasi Wireless LAN, koneksi internet dan hotspot area.",
-    description: "Layanan instalasi infrastruktur jaringan lokal kabel (LAN) dan nirkabel (Wireless LAN), konfigurasi routing & switching, koneksi internet terintegrasi, serta pembuatan hotspot area untuk gedung, pabrik, perkebunan, dan instansi.",
+    id: "srv-net-02",
+    categoryId: "cat_networking",
+    categoryName: "Data Networking",
+    name: "Router Enterprise, Wireless PTP/PTMP & Wi-Fi",
+    slug: "router-wireless-enterprise",
+    summary: "Konfigurasi Router (BGP/OSPF, Firewall, QoS, VPN) dan transmisi radio Wireless Point-to-Point jarak jauh antar site.",
+    description: "Solusi manajemen trafik jaringan oleh engineer bersertifikasi MTCNA serta pembangunan link transmisi nirkabel (Wireless Point-to-Point & Point-to-Multipoint) untuk menghubungkan kantor pusat dengan pabrik atau kebun di lokasi remote.",
     features: [
-      "Pemasangan kabel LAN (UTP/FTP/STP) terstruktur",
-      "Konfigurasi Wireless LAN & Access Point jangkauan luas",
-      "Setup Hotspot Area & manajemen bandwidth pengguna",
-      "Pengaturan gateway internet dan pembagian segmen IP"
+      "Manajemen bandwidth (QoS), VLAN, Load Balancing & Failover Multi-ISP",
+      "Wireless Point-to-Point (PTP) & Point-to-Multipoint jarak jauh",
+      "Distribusi Access Point Wi-Fi Indoor/Outdoor Seamless Roaming",
+      "Interkoneksi VPN aman antar kantor cabang & site operasional"
     ],
-    brands: ["MikroTik", "Cisco", "Ubiquiti", "TP-Link"],
-    targetSectors: ["Gedung Kantor", "Pabrik / Mill", "Perkebunan", "Kampus & Sekolah", "Pemerintahan"],
+    brands: ["MikroTik", "Ubiquiti", "Cambium Networks", "Cisco", "Ruijie", "TP-Link"],
+    targetSectors: ["Perkebunan & Tambang", "Perkantoran Multi-Cabang", "Perhotelan", "Pelabuhan"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 1 - Data Networking",
     isPublished: true,
     order: 2
   },
+
+  // 2. Radio Komunikasi (Repeater, HT, RIG)
   {
-    id: "srv-comp-03",
-    categoryId: "cat_comp_net",
-    categoryName: "Computer & Networking",
-    name: "Fibre Optic Cable Networking",
-    slug: "fibre-optic-cable-networking",
-    summary: "Instalasi kabel fiber optik, splicing, OTDR termination, dan perancangan backbone throughput tinggi.",
-    description: "Pemasangan jaringan kabel serat optik (Fiber Optic) untuk backbone antar gedung, kawasan industri, perkebunan, maupun link jarak jauh dengan kapasitas transfer data kecepatan tinggi. Didukung lisensi resmi NETVIEL InfiTe Fiber Optic Connectivity.",
+    id: "srv-rad-01",
+    categoryId: "cat_radio",
+    categoryName: "Radio Komunikasi (Repeater, HT, RIG)",
+    name: "Radio Komunikasi VHF/UHF/SSB (Repeater, HT, RIG)",
+    slug: "radio-komunikasi-repeater-ht-rig",
+    summary: "Pengadaan, instalasi & tuning stasiun Repeater VHF/UHF, Handy Talky (HT), Base/Mobile RIG, radio SSB, serta Marine Radio & AIS.",
+    description: "Solusi komunikasi suara dua arah yang tangguh untuk koordinasi operasional di area perkebunan kelapa sawit, pertambangan batubara, pembangkit listrik, dan alur pelayaran sungai/laut. Mencakup survei propagasi sinyal, instalasi Repeater di puncak bukit/tower, hingga pemrograman frekuensi HT dan RIG.",
     features: [
-      "Penarikan kabel Fiber Optic indoor & outdoor",
-      "Terminasi, konektorisasi, dan Optical Splicing",
-      "Pengujian kualitas kabel serat optik dengan OTDR",
-      "Didukung Authorized Reseller NETVIEL InfiTe Fiber Optic"
+      "Instalasi Stasiun Pengulang Sinyal (Repeater VHF/UHF) & Cavity Duplexer",
+      "Pengadaan & pemrograman Handy Talky (HT) dan Base/Mobile RIG",
+      "Instalasi antena Hustler/Omni, kabel Heliax low-loss & tuning VSWR",
+      "Sistem AIS (Automatic Identification System) & Radio Navigasi Maritim"
     ],
-    brands: ["NETVIEL (Authorized Reseller)", "Furukawa", "Corning"],
-    targetSectors: ["Kawasan Industri", "Perkebunan Sawit & Pulp", "Instansi Pemerintah", "ISP"],
+    brands: ["Motorola", "ICOM", "Kenwood", "Alinco", "Hytera", "Furuno"],
+    targetSectors: ["Perkebunan Kelapa Sawit", "Pertambangan Batubara", "Pelayaran & Kepelabuhanan", "PLN & Migas"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 2 - Radio Komunikasi",
     isPublished: true,
     order: 3
   },
   {
-    id: "srv-comp-04",
-    categoryId: "cat_comp_net",
-    categoryName: "Computer & Networking",
-    name: "Komputer Service & Repair",
-    slug: "komputer-service-and-repair",
-    summary: "Jasa perbaikan perangkat komputer, troubleshooting hardware/software, dan maintenance sistem.",
-    description: "Layanan pemeliharaan berkala, diagnosis kerusakan hardware, perbaikan motherboard/power supply, penggantian suku cadang, dan perbaikan software sistem komputer yang telah dirintis sejak 1997.",
+    id: "srv-rad-02",
+    categoryId: "cat_radio",
+    categoryName: "Radio Komunikasi (Repeater, HT, RIG)",
+    name: "Fabrikasi Tower (Guy Wire & Monopole) & Penangkal Petir",
+    slug: "fabrikasi-tower-dan-penangkal-petir",
+    summary: "Pabrikasi mandiri & ereksi Guy Wire Tower, Self Supporting Tower Monopole, serta instalasi Penangkal Petir & Grounding < 2 Ohm.",
+    description: "Dukungan infrastruktur menara antena untuk Radio Komunikasi dan Wireless ISP yang diproduksi langsung di workshop internal KGS Palembang, dilengkapi sistem proteksi petir eksternal, Surge Arrester, dan sumur grounding dengan garansi nilai tahanan tanah di bawah 2 Ohm.",
     features: [
-      "Diagnosa dan perbaikan kerusakan hardware PC / laptop",
-      "Perbaikan operating system, recovery, dan penghapusan virus",
-      "Pembersihan dan penggantian pasta termal berkala",
-      "Layanan kontrak maintenance berkala untuk korporasi"
+      "Fabrikasi & ereksi Guy Wire Tower segitiga & Self Supporting Tower Monopole",
+      "Instalasi Penangkal Petir Elektrostatis & Konvensional radius luas",
+      "Pengeboran sumur grounding tembaga dengan uji Earth Tester (< 2 Ohm)",
+      "Pemasangan Coaxial Surge Arrester & Arrester Panel MDP"
     ],
-    brands: ["Multi-brand compatible"],
-    targetSectors: ["Perkantoran", "Institusi Pendidikan", "Bisnis UKM & Korporat"],
+    brands: ["KGS Workshop Fabrication", "KURN", "VIKING", "ERICO", "OBO Bettermann"],
+    targetSectors: ["Site Perkebunan & Tambang", "Pembangkit Listrik", "Rumah Sakit", "Instansi Pemerintah"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 2 - Radio Komunikasi & Tower",
     isPublished: true,
     order: 4
   },
 
-  // Telecommunication
+  // 3. PABX
   {
-    id: "srv-tel-01",
-    categoryId: "cat_telecom",
-    categoryName: "Telecommunication",
-    name: "PABX / IP PBX System",
-    slug: "pabx-ip-pbx-system",
-    summary: "Sistem sentral telepon kantor analog, digital, maupun IP-PBX modern untuk efisiensi komunikasi suara perusahaan.",
-    description: "Pemasangan, pemrograman, dan integrasi perangkat Private Automatic Branch Exchange (PABX) serta IP PBX untuk interkoneksi ekstensi internal kantor, hotel, rumah sakit, dan industri. Creative Com telah dipercaya sebagai dealer resmi Panasonic di Palembang sejak tahun 2002.",
+    id: "srv-pbx-01",
+    categoryId: "cat_pabx",
+    categoryName: "PABX",
+    name: "Analogue PBX, Hybrid PBX & IP-PBX System",
+    slug: "analogue-hybrid-ip-pbx-system",
+    summary: "Instalasi dan pemrograman sentral telepon Analogue PBX, Hybrid PBX, dan IP-PBX (SIP/VoIP) beserta Telephone Billing System.",
+    description: "Sebagai Panasonic Authorized Dealer di Palembang sejak 2002, PT. Kreatif Global Solusindo melayani perancangan, instalasi jaringan kabel telepon, pemrograman sistem PABX (Analogue, Digital Hybrid, hingga IP-PBX multi-cabang), IVR Auto Attendant, Voice Mail, serta integrasi software billing perhotelan dan kantor.",
     features: [
-      "Pemasangan sentral PABX Analog, Hybrid & Full IP-PBX",
-      "Konfigurasi ekstensi telepon kantor, IVR & auto attendant",
-      "Integrasi Key Telephone System untuk manajemen",
-      "Interkoneksi antar kantor cabang via IP Network"
+      "Instalasi Analogue PBX & Hybrid PBX untuk kantor, hotel, dan rumah sakit",
+      "Implementasi IP-PBX & VoIP Gateway untuk komunikasi gratis antar cabang",
+      "Konfigurasi Auto Attendant (DISA/IVR), Call Recording & Conference Call",
+      "Integrasi Telephone Billing System & kontrak pemeliharaan berkala"
     ],
-    brands: ["Panasonic (Authorized Dealer)", "Ericsson-LG", "NEC", "DINSTAR"],
-    targetSectors: ["Hotel & Hospitality", "Rumah Sakit", "Perbankan", "Kantor Pajak & BPN", "Gedung Kantor"],
+    brands: ["Panasonic (Authorized Dealer)", "NEC", "Yeastar", "Grandstream", "DINSTAR"],
+    targetSectors: ["Perhotelan", "Rumah Sakit", "Perbankan", "Instansi Pemerintah & BUMN"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 3 - PABX",
     isPublished: true,
     order: 5
   },
+
+  // 4. CCTV
   {
-    id: "srv-tel-02",
-    categoryId: "cat_telecom",
-    categoryName: "Telecommunication",
-    name: "SSB, Handy Talky, Repeater, RIG & Marine Radio",
-    slug: "ssb-handy-talky-repeater-rig-marine",
-    summary: "Solusi radio komunikasi 2 arah jarak jauh untuk operasional lapangan, tambang, perkebunan, dan maritim.",
-    description: "Penyediaan dan instalasi perangkat radio komunikasi High Frequency (SSB), Very High Frequency / Ultra High Frequency (VHF/UHF), Handy Talky (HT), stasiun pangkalan (RIG), stasiun repeater penguat sinyal, serta sistem radio perkapalan (Marine Radio).",
+    id: "srv-cctv-01",
+    categoryId: "cat_cctv",
+    categoryName: "CCTV",
+    name: "CCTV Analog HD, IP Camera & Central Monitoring System",
+    slug: "cctv-surveillance-system",
+    summary: "Pemasangan kamera pengawas CCTV Indoor/Outdoor, PTZ Camera, NVR/DVR, Fiber Optic CCTV Link, dan proteksi Arrester CCTV.",
+    description: "Solusi pengawasan visual 24 jam untuk pabrik, gudang, perbankan, rumah sakit, jalan raya, hingga pelabuhan. Didukung teknisi berpengalaman dalam penarikan jalur kabel Coaxial/UTP/Fiber Optic, pemasangan tiang kamera outdoor lengkap dengan Video & Power Surge Arrester, serta konfigurasi pemantauan terpusat via layar Control Room dan Smartphone.",
     features: [
-      "Pengadaan HT, Base Station RIG, dan Single Side Band (SSB)",
-      "Pemasangan & tuning repeater radio untuk memperluas jangkauan",
-      "Radio komunikasi maritim untuk kapal dan pelabuhan",
-      "Integrasi antenna outdoor dan tuning VSWR optimal"
+      "Instalasi IP Camera beresolusi tinggi (2MP/4MP/8MP 4K) & PTZ Speed Dome",
+      "Konfigurasi NVR/DVR penyimpanan berkapasitas besar & Video Wall CMS",
+      "Pemasangan Video & Power Arrester pelindung kamera outdoor dari induksi petir",
+      "Akses pantauan real-time multi-lokasi melalui aplikasi Mobile & PC"
     ],
-    brands: ["Motorola", "ICOM", "Alinco"],
-    targetSectors: ["Perkebunan Sawit", "Pertambangan Batubara", "Pelabuhan & Pelayaran", "Pembangkit Listrik / PLTG"],
+    brands: ["Sony (Authorized Dealer)", "Hikvision", "Dahua", "Panasonic", "BOSCH", "Honeywell"],
+    targetSectors: ["Pabrik & Kawasan Industri", "Perbankan", "Rumah Sakit", "Retail & Perhotelan"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 4 - CCTV",
     isPublished: true,
     order: 6
   },
+
+  // 5. Access Door
   {
-    id: "srv-tel-03",
-    categoryId: "cat_telecom",
-    categoryName: "Telecommunication",
-    name: "Radiolink Telephone Single Channel & Data",
-    slug: "radiolink-telephone-single-channel-data",
-    summary: "Transmisi telepon dan data point-to-point nirkabel frekuensi radio ke lokasi terpencil / remote area.",
-    description: "Solusi penghubung saluran telepon dan jalur data nirkabel berbasis tautan radio (Radiolink Single Channel) untuk menjangkau lokasi perkebunan, dermaga, basecamp pertambangan, dan stasiun kepanduan yang belum terjangkau jaringan kabel konvensional.",
+    id: "srv-acc-01",
+    categoryId: "cat_access",
+    categoryName: "Access Door",
+    name: "Access Door Control Biometrik, RFID & Video Door Phone",
+    slug: "access-door-control-system",
+    summary: "Sistem pengaman akses pintu elektronik menggunakan Sidik Jari, Face Recognition, Kartu RFID, PIN, Magnetic Lock, dan Video Door Phone.",
+    description: "Pengamanan akses ruangan khusus (ruang server, ruang brankas bank, laboratorium, ruang direksi, dan kamar hotel) menggunakan pengunci elektromagnetik (Magnetic Lock / Drop Bolt) yang terintegrasi dengan pembaca biometrik wajah/sidik jari, kartu pintar RFID, maupun interkom Video Door Phone dua arah.",
     features: [
-      "Transmisi jalur suara telepon single-channel nirkabel",
-      "Koneksi link data jarak jauh point-to-point",
-      "Handal untuk kondisi remote area & perkebunan terisolir",
-      "Teruji di puluhan site perkebunan, dermaga & tambang"
+      "Autentikasi Biometrik Wajah (Face Recognition), Sidik Jari, RFID & PIN",
+      "Magnetic Lock 600lbs/1200lbs, Drop Bolt, Emergency Breakglass & Exit Button",
+      "Integrasi software pencatatan waktu kehadiran (Time Attendance) & log akses",
+      "Pemasangan Video Door Phone & Audio Intercom pintu layanan"
     ],
-    brands: ["Motorola", "ICOM", "Alinco"],
-    targetSectors: ["Perkebunan Sawit & Karet", "Site Tambang", "Stasiun Kepanduan Pelabuhan", "Pabrik Kelapa Sawit"],
+    brands: ["Rosslare", "HID", "Solution", "ZKTeco", "Commax", "Aiphone", "Panasonic"],
+    targetSectors: ["Perbankan", "Ruang Server & Data Center", "Rumah Sakit", "Hotel & Gedung Kantor"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 5 - Access Door",
     isPublished: true,
     order: 7
   },
+
+  // 6. Fire Alarm, Public Address & Nursecall
   {
-    id: "srv-tel-04",
-    categoryId: "cat_telecom",
-    categoryName: "Telecommunication",
-    name: "Telephone Billing System",
-    slug: "telephone-billing-system",
-    summary: "Sistem pencatatan, kalkulasi tarif pemakaian telepon, dan pelaporan biaya komunikasi hotel/kantor.",
-    description: "Perangkat lunak dan hardware antarmuka pencatat data panggilan telepon (Station Message Detail Recording / SMDR) untuk kontrol anggaran telepon kantor serta kalkulasi tagihan kamar hotel secara otomatis.",
+    id: "srv-fire-01",
+    categoryId: "cat_fire",
+    categoryName: "Fire Alarm, Public Address & Nursecall",
+    name: "Fire Alarm System, Public Address (Tata Suara) & Nurse Call",
+    slug: "fire-alarm-public-address-nursecall",
+    summary: "Instalasi sistem deteksi kebakaran (MCFA, Smoke/Heat Detector), Public Address / Paging Sound System, dan Nurse Call Rumah Sakit.",
+    description: "Layanan terintegrasi untuk keselamatan jiwa dan komunikasi darurat gedung: pemasangan panel Master Control Fire Alarm (MCFA) beserta detektor asap/panas dan alarm intrusi; instalasi tata suara gedung (Public Address / Ceiling Speaker / Horn Speaker & Conference System); serta pemasangan sistem pemanggil perawat (Nurse Call) untuk ruang rawat inap rumah sakit.",
     features: [
-      "Pencatatan rincian nomor panggilan masuk dan keluar",
-      "Kalkulasi tarif pulsa/durasi otomatis untuk perhotelan",
-      "Laporan statistik pemakaian telepon per divisi / ekstensi",
-      "Integrasi langsung dengan unit PABX"
+      "Instalasi MCFA Semi-Addressable / Full-Addressable, Smoke & Heat Detector",
+      "Manual Call Point (Titik Panggil Darurat), Alarm Bell & Indicator Lamp",
+      "Sistem Tata Suara Gedung (Public Address / Paging System) & Conference Room",
+      "Instalasi Nurse Call System (Master Station, Bedside Call, Toilet Pull Cord & Corridor Light)"
     ],
-    brands: ["Panasonic", "Ericsson-LG"],
-    targetSectors: ["Hotel & Penginapan", "Perusahaan Finansial / Pembiayaan", "Instansi Pemerintah"],
+    brands: ["Hooseki", "Notifier", "Honeywell", "BOSCH", "TOA", "Aiphone", "Commax"],
+    targetSectors: ["Rumah Sakit & Klinik", "Perbankan", "Gedung Bertingkat & Hotel", "Pabrik & BUMN"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 6 - Fire Alarm, Public Address & Nursecall",
     isPublished: true,
     order: 8
   },
-  {
-    id: "srv-tel-05",
-    categoryId: "cat_telecom",
-    categoryName: "Telecommunication",
-    name: "VOIP Gateway & IP Telephone",
-    slug: "voip-gateway-ip-telephone",
-    summary: "Integrasi Voice over IP untuk transmisi percakapan telepon melalui jaringan data internet/intranet.",
-    description: "Penggunaan gateway VOIP dan pesawat IP Phone untuk mentransmisikan percakapan suara melalui protokol internet (IP), memungkinkan komunikasi gratis antar kantor cabang melalui jaringan data internal tanpa tarif interlokal.",
-    features: [
-      "Setup VOIP Gateway FXS/FXO untuk menghubungkan jalur PSTN",
-      "Instalasi pesawat IP Phone meja kantor",
-      "Interkoneksi antar kantor pusat dan site tambang/kebun via VPN/IP",
-      "Efisiensi biaya komunikasi telepon korporasi"
-    ],
-    brands: ["DINSTAR", "Panasonic", "Grandstream"],
-    targetSectors: ["Perusahaan Multicabang", "Grup Perkebunan & Pertambangan", "BUMN"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 9
-  },
-  {
-    id: "srv-tel-06",
-    categoryId: "cat_telecom",
-    categoryName: "Telecommunication",
-    name: "NurseCall System",
-    slug: "nursecall-system",
-    summary: "Sistem pemanggil perawat terintegrasi untuk ruang rawat inap rumah sakit dan klinik bersalin.",
-    description: "Instalasi perangkat sistem pemanggil perawat (Nurse Call) dengan tombol darurat di sisi tempat tidur pasien dan kamar mandi yang terhubung langsung ke master station di pos perawat (nurse station).",
-    features: [
-      "Bedside call button dan corded push button",
-      "Emergency toilet pull cord untuk keselamatan pasien",
-      "Master station display suara & visual di nurse station",
-      "Lampu indikator koridor di depan setiap kamar pasien"
-    ],
-    brands: ["Commax", "Aiphone"],
-    targetSectors: ["Rumah Sakit Umum & Daerah", "Klinik Bersalin / RSIA", "Pusat Rawat Inap"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 10
-  },
 
-  // Video Surveillance / CCTV
-  {
-    id: "srv-cctv-01",
-    categoryId: "cat_cctv_sec",
-    categoryName: "Video Surveillance / CCTV",
-    name: "CCTV Analog & IP (Network) Camera",
-    slug: "cctv-analog-ip-network-camera",
-    summary: "Sistem pengawasan kamera keamanan beresolusi tinggi, baik sistem Analog maupun IP Camera berbasis jaringan.",
-    description: "Perancangan, instalasi kabel coaxial / UTP, konfigurasi Network Video Recorder (NVR) / Digital Video Recorder (DVR), serta integrasi pemantauan kamera pengawas CCTV multi-site. PT. KGS merupakan Sony Authorized Dealer dan bermitra dengan merek global terkemuka.",
-    features: [
-      "Instalasi IP Network Camera resolusi Full HD hingga 4K",
-      "Setup CCTV Analog High Definition (AHD/TVI/CVI)",
-      "Pemasangan kabel proteksi outdoor & lightning arrester CCTV",
-      "Monitoring terpusat (Central Monitoring System / CMS) & akses jarak jauh via smartphone"
-    ],
-    brands: ["Sony (Authorized Dealer)", "Samsung", "Panasonic", "BOSCH", "Honeywell", "Avtech", "Keeper", "G-Lenz", "Hikvision", "Dahua"],
-    targetSectors: ["Pabrik Industri & Mill", "Rumah Sakit", "Perbankan", "Minimarket / Ritel", "Gedung Perkantoran", "Perpustakaan & Kampus"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 11
-  },
-  {
-    id: "srv-cctv-02",
-    categoryId: "cat_cctv_sec",
-    categoryName: "Video Surveillance / CCTV",
-    name: "Door Access Control System",
-    slug: "door-access-control-system",
-    summary: "Sistem pengaman pintu elektronik berbasis kartu RFID, PIN, dan biometrik untuk ruang penting.",
-    description: "Pemasangan sistem pembatas dan pengaman akses pintu masuk (Access Control) menggunakan magnetic lock / drop bolt dengan autentikasi kartu RFID, smart key, atau biometrik untuk ruang server, brankas, kantor manajemen, dan area sensitif.",
-    features: [
-      "Magnetic lock & dropbolt berkekuatan tahan tinggi",
-      "Reader kartu proximity / mifare dan PIN keypad",
-      "Tombol exit emergency & integrasi door phone",
-      "Pencatatan log keluar-masuk pegawai secara real-time"
-    ],
-    brands: ["Rosslare", "HID", "EntryPass"],
-    targetSectors: ["Perbankan", "Rumah Sakit", "Travel Office", "Kantor Korporat", "Institusi Pendidikan"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 12
-  },
-
-  // Internet Service Provider
+  // 7. Internet Service Provider
   {
     id: "srv-isp-01",
     categoryId: "cat_isp",
     categoryName: "Internet Service Provider",
-    name: "Koneksi Internet KGSNet via Wireless & Fiber Optic",
-    slug: "koneksi-internet-kgsnet-wireless-fiber-optic",
-    summary: "Layanan sambungan internet dedicated dan broadband berizin resmi KGSNet melalui radio wireless dan fiber optik.",
-    description: "Layanan penyedia jasa internet (ISP) resmi berizin tahun 2020 dengan brand KGSNet dan anggota resmi APJII. Menghubungkan kawasan industri, perkebunan, pelabuhan, dan perkantoran melalui media transmisi Wireless Point-to-Point maupun kabel Fiber Optic berkecepatan tinggi dengan uptime andal.",
+    name: "KGSNet Internet Dedicated, Internet Bisnis & Home Internet",
+    slug: "internet-dedicated",
+    summary: "Layanan Internet Resmi Kominfo RI & APJII (Dedicated, Bisnis & Home). KGSNet menerima kerjasama kemitraan reseller layanan internet di seluruh Indonesia.",
+    description: "PT. Kreatif Global Solusindo melalui brand resmi KGSNet menyelenggarakan layanan akses internet pita lebar berbasis Fiber Optik dan Radio Wireless (Izin Kominfo RI Nomor: 674/TEL.02.02/2020, SKLO Nomor: 375/TEL.04.02/2020, NIB: 9120202100598). Tersedia dalam 3 segmen (Internet Dedicated 1:1, Internet Bisnis, dan Home Internet) serta membuka kerjasama kemitraan reseller layanan internet di seluruh Indonesia.",
     features: [
-      "Koneksi Dedicated Internet 1:1 simetris upload & download",
-      "Distribusi link melalui jaringan Wireless Tower & Fiber Optic",
-      "Tergabung dalam APJII dengan peering router BGP NeuCentrIX",
-      "Dukungan lastmile PT. Telkom Indonesia & tower support rekanan"
+      "Internet Dedicated (UMKM, Sekolah & Corporate) rasio simetris 1:1 & SLA 99.5%",
+      "Internet Bisnis (10 Mbps s/d 200 Mbps) & Home Internet Unlimited",
+      "Berizin resmi Kominfo RI No. 674/TEL.02.02/2020 & SKLO No. 375/TEL.04.02/2020",
+      "KGSNet menerima kerjasama kemitraan reseller layanan internet di seluruh Indonesia"
     ],
-    brands: ["KGSNet (Official ISP Brand)", "APJII Member", "Telkom Indonesia (Lastmile)"],
-    targetSectors: ["Perkebunan Kelapa Sawit", "Pertambangan & Pelabuhan Port", "Distrik Navigasi & KSOP", "Instansi BUMN"],
+    brands: ["KGSNet (Official ISP)", "APJII Official Member", "Kominfo RI Licensed"],
+    targetSectors: ["Korporasi & Pabrik", "Instansi & Sekolah", "UMKM & Ruko", "Mitra Reseller Seluruh Indonesia"],
     pdfPage: 4,
     verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
+    adminNotes: "Bidang 7 - Internet Service Provider",
     isPublished: true,
-    order: 13
-  },
-  {
-    id: "srv-isp-02",
-    categoryId: "cat_isp",
-    categoryName: "Internet Service Provider",
-    name: "Web & Mail Hosting, Server Colocation & Cloud",
-    slug: "web-mail-hosting-server-colo-cloud",
-    summary: "Layanan hosting website perusahaan, email bisnis korporasi, serta colocation dan cloud server.",
-    description: "Penyediaan infrastruktur hosting website domain perusahaan, email hosting korporasi yang stabil dan aman, fasilitas rak colocation server di data center, serta komputasi awan (Cloud) untuk operasional aplikasi bisnis terpusat.",
-    features: [
-      "Hosting website perusahaan berkecepatan tinggi",
-      "Corporate email hosting dengan perlindungan spam & filter",
-      "Layanan Server Colocation di Data Center terstandar",
-      "Infrastruktur Cloud Server untuk aplikasi bisnis"
-    ],
-    brands: ["KGSNet Cloud Services"],
-    targetSectors: ["Korporasi", "Lembaga Pemerintah", "Institusi Pendidikan", "Pelaku Usaha"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 14
-  },
-  {
-    id: "srv-isp-03",
-    categoryId: "cat_isp",
-    categoryName: "Internet Service Provider",
-    name: "Network Managed Service",
-    slug: "network-managed-service",
-    summary: "Layanan pengelolaan, pemeliharaan proaktif, dan monitoring performa infrastruktur jaringan pelanggan.",
-    description: "Pengelolaan menyeluruh jaringan komputer dan internet perusahaan, meliputi pemeliharaan perangkat router/switch, monitoring trafik transmisi, penanganan kendala teknis cepat tanggap, serta optimalisasi bandwidth.",
-    features: [
-      "Pemantauan jaringan proaktif dari Network Operation Center (NOC)",
-      "Manajemen perangkat router, access point, dan bandwidth limiter",
-      "Dukungan teknisi lapangan responsif di wilayah Sumatera & sekitarnya",
-      "Laporan statistik performa dan utilisasi trafik jaringan"
-    ],
-    brands: ["KGSNet Support Team"],
-    targetSectors: ["Industri Sawit & Tambang", "Kantor Operasional Pelabuhan", "Jaringan Bisnis Multi-Cabang"],
-    pdfPage: 14,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 15
-  },
-
-  // Another Service
-  {
-    id: "srv-oth-01",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "Audio – Video Conference System",
-    slug: "audio-video-conference-system",
-    summary: "Sistem konferensi audio dan video interaktif untuk ruang rapat direksi, aula sidang, dan ruang seminar.",
-    description: "Instalasi perangkat sistem telekonferensi video dan tata suara konferensi audio interaktif dengan mikrofon meja delegate/chairman, kamera PTZ tracking, dan sound processor berkualitas tinggi.",
-    features: [
-      "Kamera PTZ High Definition dengan optical zoom",
-      "Sistem mikrofon delegate & chairman untuk meja rapat",
-      "Acoustic echo cancellation untuk kejernihan suara",
-      "Dapat dihubungkan ke platform video conference modern"
-    ],
-    brands: ["BOSCH", "TOA", "POLYCOM"],
-    targetSectors: ["Instansi Pemerintah (Kanwil Kemenag)", "Klinik & Laboratorium", "Ruang Rapat Perusahaan"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 16
-  },
-  {
-    id: "srv-oth-02",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "Biometric Attendant (Mesin Absensi)",
-    slug: "biometric-attendant",
-    summary: "Mesin pencatat kehadiran pegawai menggunakan sidik jari (fingerprint) dan pengenalan biometrik.",
-    description: "Penyediaan dan konfigurasi mesin absensi biometrik untuk mencatat waktu kehadiran karyawan secara akurat, terhubung ke software payroll dan manajemen SDM perusahaan.",
-    features: [
-      "Sensor sidik jari optik berkecepatan baca tinggi",
-      "Koneksi kabel LAN / nirkabel untuk sinkronisasi data absensi",
-      "Integrasi laporan keterlambatan dan jam kerja pegawai",
-      "Dapat dipadukan dengan modul pembuka pintu (Access Door)"
-    ],
-    brands: ["Magic", "Solution", "I-Bio"],
-    targetSectors: ["Perusahaan Swasta", "Pabrik / Manufaktur", "Rumah Sakit", "Instansi Pemerintah"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 17
-  },
-  {
-    id: "srv-oth-03",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "Tower Erection (Guywire & Self Supporting Tower)",
-    slug: "tower-erection-guywire-self-supporting",
-    summary: "Fabrikasi, ereksi, dan pemeliharaan menara telekomunikasi (Guywire Tower dan Self Supporting Tower).",
-    description: "Layanan pabrikasi besi rangka tower di Workshop Creative Com sendiri, dilanjutkan proses ereksi (pemasangan berdiri) tower jenis Guywire (tarikan kawat seling) maupun Self Supporting Tower (SST 3/4 kaki) untuk antena radio, internet wireless, dan penangkal petir.",
-    features: [
-      "Pabrikasi rangka tiang tower di workshop internal Creative Com",
-      "Ereksi Guywire Tower dengan kawat seling baja galvanis",
-      "Ereksi Self Supporting Tower (SST) untuk beban antena berat",
-      "Pengecatan standar penerbangan, lampu obstacle tower & grounding"
-    ],
-    brands: ["Creative Com Workshop Fabrication"],
-    targetSectors: ["Internet Service Provider", "Perkebunan & Tambang", "Instansi Telekomunikasi"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 18
-  },
-  {
-    id: "srv-oth-04",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "Lightning Protection System (Penangkal Petir & Grounding)",
-    slug: "lightning-protection-system",
-    summary: "Instalasi sistem penangkal petir elektrostatis/konvensional, grounding pembumian, dan arrester panel.",
-    description: "Perancangan dan pemasangan sistem proteksi petir eksternal dan internal untuk melindungi gedung, pembangkit listrik, pabrik sawit, dan menara telekomunikasi dari sambaran petir. Meliputi head terminal penangkal petir, instalasi kabel down conductor, pembuatan sistem grounding di bawah 2 Ohm teruji alat ukur Earth Resistance Tester, surge arrester panel MDP, serta lightning counter.",
-    features: [
-      "Head terminal penangkal petir elektrostatis jangkauan luas",
-      "Pengeboran dan instalasi grounding rod dengan resistansi < 2 Ohm",
-      "Pemasangan Surge Arrester pada Panel Distribusi Utama (MDP) & CCTV",
-      "Pemasangan Lightning Strike Counter untuk merekam sambaran",
-      "Pengujian terstandar menggunakan Earth Resistance Tester"
-    ],
-    brands: ["KURN", "ERICO", "VIKING", "THOMAS"],
-    targetSectors: ["Pembangkit Listrik (PLTG)", "Rumah Sakit Umum", "Pabrik Sawit & Agro", "Area Stockpile Tambang"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 19
-  },
-  {
-    id: "srv-oth-05",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "AIS (Automatic Identification System)",
-    slug: "automatic-identification-system-ais",
-    summary: "Sistem identifikasi dan pelacakan kapal otomatis berbasis AIS Receiver dan integrasi kamera pengawas.",
-    description: "Pemasangan dan integrasi sistem identifikasi kapal maritim otomatis (Automatic Identification System / AIS) yang memadukan AIS Receiver VHF dengan kamera pengawas Hikvision resolusi tinggi dan antena menara. Digunakan untuk memantau pergerakan kapal tongkang, kapal motor di alur sungai, dermaga pelabuhan, dan perairan wilayah oleh Distrik Navigasi dan perusahaan logistik.",
-    features: [
-      "Pemasangan perangkat AIS Receiver kelas profesional",
-      "Integrasi perangkat lunak monitoring posisi kapal secara real-time",
-      "Kombinasi visual kamera pengawas Hikvision & data GPS kapal",
-      "Pemasangan antena VHF marine pada elevasi menara optimal"
-    ],
-    brands: ["AIS Receiver Industry Grade", "Hikvision Integration"],
-    targetSectors: ["Distrik Navigasi (DISNAV)", "Perusahaan Tongkang Batubara & Kayu", "Perusahaan Pelayaran & Dermaga"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 20
-  },
-  {
-    id: "srv-oth-06",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "Fire & Intrusion Alarm System",
-    slug: "fire-intrusion-alarm-system",
-    summary: "Sistem deteksi dini bahaya kebakaran dan alarm keamanan intrusi pencurian untuk gedung dan perbankan.",
-    description: "Pemasangan Master Control Fire Alarm (MCFA), detektor asap (smoke detector), detektor panas (heat detector), manual call point, serta sirine evakuasi, dipadukan dengan sensor gerak dan door contact alarm intrusi untuk proteksi fasilitas vital.",
-    features: [
-      "Instalasi Master Control Fire Alarm (MCFA) zona / addressable",
-      "Pemasangan Smoke & Heat Detector di titik strategis",
-      "Sensor intrusi dan alarm anti pembobolan untuk kantor bank",
-      "Integrasi sirine evakuasi dan indikator lampu darurat"
-    ],
-    brands: ["BOSCH", "Notifier", "Honeywell", "Hooseki"],
-    targetSectors: ["Perbankan (Bank Mandiri, Bank Yudha)", "Rumah Sakit (RS Muhammadiyah, RS Siti Fatimah)", "Telekomunikasi (PT Telkom Indonesia)", "Industri Manufaktur (PT Valmet)"],
-    pdfPage: 4,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 21
-  },
-  {
-    id: "srv-oth-07",
-    categoryId: "cat_another_service",
-    categoryName: "Another Service",
-    name: "Pengadaan Khusus: Public Address, Mesin Antri, Labor Bahasa & Solar Panel",
-    slug: "pengadaan-khusus-sound-mesin-antri-labor-bahasa-solar",
-    summary: "Solusi pengadaan sound system gedung, mesin antrian Quenetic, laboratorium bahasa, dan panel surya.",
-    description: "Layanan proyek pengadaan spesifik yang telah sukses diselesaikan oleh Creative Com / PT. KGS, mencakup tata suara Public Address / Sound System aula, Mesin Antrian Quenetic System di kantor imigrasi dan perbankan, perangkat laboratorium bahasa sekolah, serta instalasi sistem panel tenaga surya (Solar Panel Cell) di area industri.",
-    features: [
-      "Public Address & Sound System gedung aula / pabrik",
-      "Quenetic System (Mesin Antrian Elektronik loket kantor publik)",
-      "Perangkat Laboratorium Bahasa lengkap untuk institusi pendidikan",
-      "Pemasangan modul Panel Solar Sel untuk suplai energi mandiri"
-    ],
-    brands: ["TOA", "Quenetic", "Tier-1 Solar Cell Module"],
-    targetSectors: ["Kantor Imigrasi", "Otoritas Jasa Keuangan (OJK)", "Perbankan", "Yayasan Pendidikan", "Industri Pulp & Paper"],
-    pdfPage: 13,
-    verificationStatus: "Standar Resmi KGS",
-    adminNotes: "Standar Layanan Resmi PT. KGS",
-    isPublished: true,
-    order: 22
+    order: 9
   }
 ];
 
@@ -990,117 +1040,258 @@ export const VERIFIED_CLIENTS: ClientItem[] = [
 ];
 
 export const PROJECT_DOCUMENTARY: ProjectPhoto[] = [
+  // 1. Data Networking
   {
     id: "doc-01",
-    title: "Pabrikasi Guywire Tower",
-    clientOrLocation: "Workshop Creative Com Palembang",
-    description: "Pemotongan, perakitan dan pengelasan modul guywire tower oleh tim teknisi internal di workshop resmi Creative Com.",
-    category: "Fabrikasi Tower",
-    pdfPage: 18
+    title: "Instalasi Jaringan Data & Fiber Optic PT. JAPFA COMFEED Tbk",
+    clientOrLocation: "Site Jambi, Lampung & Padang",
+    description: "Pemasangan infrastruktur jaringan komputer LAN/WAN, penarikan kabel Fiber Optik backbone antar gedung produksi, terminasi OTB, dan konfigurasi rack server.",
+    category: "Data Networking",
+    pdfPage: 20,
+    imageUrl: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-01-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi rack server, patch panel, dan switch gigabit pada proyek Data Networking PT. JAPFA COMFEED Tbk.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-01-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80",
+        caption: "Penarikan dan terminasi fusion splicing kabel Fiber Optik backbone antar fasilitas pabrik.",
+        sortOrder: 2
+      },
+      {
+        id: "doc-01-img-3",
+        imageUrl: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pengujian kualitas redaman kabel serat optik dengan OTDR dan sertifikasi titik jaringan data.",
+        sortOrder: 3
+      }
+    ]
   },
   {
     id: "doc-02",
-    title: "External Lightning Protect & Grounding Installation",
-    clientOrLocation: "Lokasi Proyek Industri",
-    description: "Pemasangan proteksi penangkal petir eksternal dan pengeboran grounding elektroda untuk proteksi sambaran petir.",
-    category: "Penangkal Petir",
-    pdfPage: 18
+    title: "Pemasangan Jaringan Intranet Link & Wireless Point-to-Point",
+    clientOrLocation: "ADR Group Jambi & Sumsel / BBIP Group",
+    description: "Pemasangan link transmisi data nirkabel (Wireless PTP) dan router intranet penghubung antar kebun sawit dengan pusat kendali operasional.",
+    category: "Data Networking",
+    pdfPage: 19,
+    imageUrl: "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-02-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80",
+        caption: "Konfigurasi Router MikroTik dan switch distribusi untuk jaringan Intranet Link ADR Group Jambi & Sumsel.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-02-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80",
+        caption: "Pointing antena radio Wireless Point-to-Point di Site STO Telkom Jambi menuju Mill BBIP Group.",
+        sortOrder: 2
+      }
+    ]
   },
+
+  // 2. Radio Komunikasi (Repeater, HT, RIG)
   {
     id: "doc-03",
-    title: "Pengujian Nilai Tahanan Tanah (Earth Resistance Tester)",
-    clientOrLocation: "Area Pembumian Proyek",
-    description: "Pengukuran resistansi pembumian menggunakan Earth Resistance Tester digital untuk menjamin nilai tanah di bawah 2 Ohm.",
-    category: "Penangkal Petir",
-    pdfPage: 18
+    title: "Pemasangan Repeater HT, Base RIG & Antena Radio Komunikasi",
+    clientOrLocation: "MUBA Electric Power (Sungai Lalan) & Perkebunan Sumsel",
+    description: "Instalasi stasiun pengulang sinyal (Repeater VHF/UHF), radio Base RIG, dan pemrograman Handy Talky (HT) lengkap dengan ereksi tower dan penangkal petir.",
+    category: "Radio Komunikasi (Repeater, HT, RIG)",
+    pdfPage: 20,
+    imageUrl: "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-03-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pemasangan antena omni VHF dan kabel Heliax low-loss pada menara Repeater HT MUBA Electric Power.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-03-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1200&q=80",
+        caption: "Tuning Cavity Duplexer, pengujian VSWR antena, dan uji jangkauan komunikasi HT & RIG lintas rayon.",
+        sortOrder: 2
+      },
+      {
+        id: "doc-03-img-3",
+        imageUrl: "https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pabrikasi Guywire Tower dan pengujian grounding penangkal petir (< 2 Ohm) untuk proteksi stasiun radio.",
+        sortOrder: 3
+      }
+    ]
   },
   {
     id: "doc-04",
-    title: "Arrester Panel MDP",
-    clientOrLocation: "RSUD Kayu Agung",
-    description: "Instalasi surge arrester panel Main Distribution Panel (MDP) untuk melindungi trafo dan instrumen medis dari lonjakan daya petir.",
-    category: "Penangkal Petir",
-    pdfPage: 18
+    title: "Instalasi Radio Navigasi & AIS (Automatic Identification System)",
+    clientOrLocation: "Tulung Selapan OKI & Alur Sungai Musi Palembang",
+    description: "Pemasangan perangkat radio VHF maritim dan AIS Receiver pada menara 28 meter untuk pemantauan komunikasi dan posisi kapal tongkang.",
+    category: "Radio Komunikasi (Repeater, HT, RIG)",
+    pdfPage: 15,
+    imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-04-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi antena VHF AIS Receiver dan radio komunikasi pantai pada menara 28 meter di Tulung Selapan OKI.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-04-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+        caption: "Monitoring pergerakan kapal dan komunikasi radio RIG operator kepelabuhanan secara real-time.",
+        sortOrder: 2
+      }
+    ]
   },
+
+  // 3. PABX
   {
     id: "doc-05",
-    title: "Arrester CCTV",
-    clientOrLocation: "PLTU Talang Duku PT. PLN",
-    description: "Pemasangan video & power arrester pada kamera CCTV outdoor di area pembangkit tenaga listrik.",
-    category: "CCTV & Security",
-    pdfPage: 18
+    title: "Instalasi Sentral Telepon PABX, IP-PBX & Billing System",
+    clientOrLocation: "Hotel Swarna Dwipa, RSI Siti Khadijah & Bank SumselBabel",
+    description: "Pemasangan dan pemrograman sentral PABX Panasonic (Analogue, Hybrid & IP-PBX), jaringan distribusi MDF/IDF, serta sistem interkom kamar dan perkantoran.",
+    category: "PABX",
+    pdfPage: 18,
+    imageUrl: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-05-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi dan terminasi Main Distribution Frame (MDF) sistem PABX Panasonic untuk ratusan ekstensi.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-05-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pemrograman console operator Digital Key Telephone, IP Phone, dan integrasi Telephone Billing System.",
+        sortOrder: 2
+      }
+    ]
   },
+
+  // 4. CCTV
   {
     id: "doc-06",
-    title: "Instalasi Tower & Jaringan Networking BBIP Group",
-    clientOrLocation: "Site STO Telkom Jambi & Mill Jambi",
-    description: "Ereksi tower transmisi dan terminasi kabel jaringan komunikasi data dari Site STO Telkom menuju pabrik kelapa sawit.",
-    category: "Networking & Tower",
-    pdfPage: 18
+    title: "Pemasangan Kamera Pengawas CCTV Kawasan Industri & Pembangkit",
+    clientOrLocation: "PT. OKI Pulp & Paper, PLTU Talang Duku & RS Siloam Sriwijaya",
+    description: "Instalasi jaringan IP Camera & CCTV Analog HD outdoor/indoor, tiang kamera pantau, proteksi Arrester CCTV, serta ruang kontrol NVR Video Wall.",
+    category: "CCTV",
+    pdfPage: 19,
+    imageUrl: "https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-06-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pemasangan kamera CCTV outdoor beresolusi tinggi beserta Video & Power Arrester di PLTU Talang Duku.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-06-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1580894894513-541e068a3e2b?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi tiang kamera CCTV perimeter dan penarikan link Fiber Optik di kawasan PT. OKI Pulp & Paper.",
+        sortOrder: 2
+      },
+      {
+        id: "doc-06-img-3",
+        imageUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+        caption: "Konfigurasi NVR dan layar Central Monitoring System (CMS) 24 jam di ruang sekuriti utama.",
+        sortOrder: 3
+      }
+    ]
   },
+
+  // 5. Access Door
   {
     id: "doc-07",
-    title: "Door Phone & Audio Intercom",
-    clientOrLocation: "Hotel Arya Duta Palembang",
-    description: "Instalasi interkom komunikasi internal door phone pada kamar dan pintu layanan hotel bintang 5.",
-    category: "Telekomunikasi",
-    pdfPage: 18
+    title: "Instalasi Door Access Control Biometrik, RFID & Video Door Phone",
+    clientOrLocation: "Bank Danamon, Hotel Arya Duta & Ruang Server Korporat",
+    description: "Pemasangan sistem pengunci pintu elektrik (Magnetic Lock / Drop Bolt) terintegrasi reader kartu RFID, sidik jari/wajah, dan interkom pintu masuk.",
+    category: "Access Door",
+    pdfPage: 18,
+    imageUrl: "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-07-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi terminal Access Door Biometrik & RFID beserta Magnetic Lock pada pintu ruang terbatas.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-07-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pemasangan unit Door Phone & Audio-Video Intercom di Hotel Arya Duta Palembang.",
+        sortOrder: 2
+      }
+    ]
   },
+
+  // 6. Fire Alarm, Public Address & Nursecall
   {
     id: "doc-08",
-    title: "Pemasangan CCTV Security System Terintegrasi",
-    clientOrLocation: "PT. OKI Pulp & Paper",
-    description: "Pemasangan kamera CCTV keamanan, tiang pemantau dan kabel link di kawasan industri pabrik bubur kertas terbesar.",
-    category: "CCTV & Security",
-    pdfPage: 19
+    title: "Instalasi Fire Alarm, Public Address (Tata Suara) & Nurse Call RS",
+    clientOrLocation: "RSUD Siti Fatimah, RS Muhammadiyah, Telkom & Perbankan",
+    description: "Pemasangan panel MCFA Fire Alarm, detektor asap/panas, tata suara evakuasi gedung (Public Address), serta sistem pemanggil perawat (Nurse Call) ruang rawat inap.",
+    category: "Fire Alarm, Public Address & Nursecall",
+    pdfPage: 18,
+    imageUrl: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=1200&q=80",
+    images: [
+      {
+        id: "doc-08-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi panel Master Control Fire Alarm (MCFA), Smoke Detector, dan Alarm Bell evakuasi gedung.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-08-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80",
+        caption: "Pemasangan unit Nurse Call (pemanggil perawat) pada bed pasien dan lampu indikator koridor rumah sakit.",
+        sortOrder: 2
+      },
+      {
+        id: "doc-08-img-3",
+        imageUrl: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1200&q=80",
+        caption: "Instalasi ceiling speaker Public Address (Paging Sound System) dan audio ruang rapat utama.",
+        sortOrder: 3
+      }
+    ]
   },
+
+  // 7. Internet Service Provider
   {
     id: "doc-09",
-    title: "Pemasangan Jaringan Intranet Link",
-    clientOrLocation: "ADR Group Jambi & Sumsel",
-    description: "Pemasangan link radio komunikasi data dan router intranet antar lokasi kebun sawit dengan pusat kendali operasional.",
-    category: "Networking & Tower",
-    pdfPage: 19
-  },
-  {
-    id: "doc-10",
-    title: "Pemasangan Panel Solar Sel Tenaga Surya",
-    clientOrLocation: "PT. OKI Pulp & Paper",
-    description: "Instalasi modul panel sel surya mandiri untuk suplai energi perangkat pengawas dan sensor transmisi di area terbuka.",
-    category: "Solusi Terintegrasi",
-    pdfPage: 19
-  },
-  {
-    id: "doc-11",
-    title: "Pemasangan Repeater HT MUBA Electric Power",
-    clientOrLocation: "Sungai Lalan, Kab. Musi Banyuasin",
-    description: "Pemasangan perangkat stasiun pengulang sinyal (repeater) Handy Talky frekuensi VHF untuk koordinasi operasional tenaga listrik daerah.",
-    category: "Radio Komunikasi",
-    pdfPage: 20
-  },
-  {
-    id: "doc-12",
-    title: "Pemasangan Sistem Penangkal Petir Terpadu",
-    clientOrLocation: "PT. PISS Langkat, Sumatera Utara",
-    description: "Pengeboran sumur grounding, pemasangan head terminal petir radius proteksi luas dan pengkabelan tembaga konduktor.",
-    category: "Penangkal Petir",
-    pdfPage: 20
-  },
-  {
-    id: "doc-13",
-    title: "Pemasangan Jaringan PT. JAPFA COMFEED Tbk",
-    clientOrLocation: "Site Jambi dan Padang",
-    description: "Pemasangan infrastruktur jaringan komputer, penarikan kabel data dan konfigurasi perangkat jaringan di fasilitas pakan ternak.",
-    category: "Networking & Tower",
-    pdfPage: 20
-  },
-  {
-    id: "doc-14",
-    title: "Pemasangan AIS (Automatic Identification System) Maritim",
-    clientOrLocation: "Tulung Selapan OKI / Perairan Sungai Musi",
-    description: "Instalasi AIS Receiver terintegrasi kamera Hikvision pada ketinggian menara 28 meter untuk pemantauan lalu lintas kapal secara otomatis.",
-    category: "AIS & Navigasi",
-    pdfPage: 15
+    title: "Implementasi Jaringan Internet Dedicated & POP ISP KGSNet",
+    clientOrLocation: "Distrik Navigasi Palembang, KSOP Tanjung Api-Api & Kawasan Industri",
+    description: "Pembangunan infrastruktur POP (Point of Presence), distribusi Fiber Optik & Radio Wireless ISP KGSNet untuk pelanggan korporat, instansi, dan mitra reseller.",
+    category: "Internet Service Provider",
+    pdfPage: 14,
+    imageUrl: "https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80",
+    images: [
+      {
+        id: "doc-09-img-1",
+        imageUrl: "https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80",
+        caption: "Infrastruktur menara POP dan transmisi distribusi akses Internet Service Provider KGSNet.",
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: "doc-09-img-2",
+        imageUrl: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80",
+        caption: "Ruang NOC & Core Router BGP KGSNet untuk layanan Internet Dedicated dan kemitraan reseller seluruh Indonesia.",
+        sortOrder: 2
+      }
+    ]
   }
 ];
 
@@ -1321,14 +1512,10 @@ Workshop Creative Com (PT. KGS) memproduksi tiang guywire tower mandiri dengan s
 export const INITIAL_PAGES: StaticPageItem[] = [
   {
     id: "page-1",
-    title: "Profil & Sejarah Perusahaan",
+    title: "Profile Perusahaan",
     slug: "profil-perusahaan",
-    summary: "Sejarah Creative Com sejak 1997 hingga menjadi PT. Kreatif Global Solusindo dan ISP berizin APJII.",
-    content: `Creative Com adalah nama tempat usaha yang menjual produk IT dengan legalitas CV. CREATIVE, berdomisili di Palembang sejak 1997 dan sejak 2013 menjadi PT. KREATIF GLOBAL SOLUSINDO. Pada awal berdirinya Creative Com bergerak dalam bidang jasa perbaikan perangkat computer dan jaringan.
-
-Kemudian di 1998, merambah kebidang penjualan perangkat wartel sebagai distributor perangkat wartel merk QPHONE. Lalu pada 2002, Panasonic mempercayakan CREATIVE COM sebagai salah satu dealernya di Palembang.
-
-Dengan mengamati perkembangan teknologi dan kebutuhan masyarakat, maka sejak 2004 melayani permintaan pemasangan jaringan komputer (Cable / Wireless), radio komunikasi, pabx serta tower antenna. Dan saat ini, sejak tahun 2020, PT. KGS juga telah resmi memiliki izin sebagai perusahaan penyelenggara jasa internet (ISP) dengan nama produk KGSNet dan tergabung menjadi anggota APJII.`,
+    summary: "Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo.",
+    content: `Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo. Dengan didukung team teknisi yang terlatih dan berpengalaman, melayani berbagai kebutuhan masyarakat, baik perseorangan maupun kebutuhan kantor.`,
     isPublished: true,
     sortOrder: 1,
     updatedAt: "2026-10-18 10:00"
@@ -1337,15 +1524,15 @@ Dengan mengamati perkembangan teknologi dan kebutuhan masyarakat, maka sejak 200
     id: "page-2",
     title: "Visi, Budaya & Komitmen",
     slug: "visi-misi-budaya",
-    summary: "Landasan nilai, visi kepemimpinan, model organisasi fungsional, dan komitmen kepuasan pelanggan.",
-    content: `Visi Perusahaan:
-Menjadi perusahaan yang terdepan dan terpercaya serta mampu memberikan layanan yang baik dan berkualitas. Mampu memberikan solusi yang tepat sesuai dengan kebutuhan konsumen.
+    summary: "Landasan nilai, visi kepemimpinan, model organisasi fungsional, dan komitmen kepuasan pelanggan PT. Kreatif Global Solusindo.",
+    content: `VISI
+Menjadi perusahaan yang terdepan dan terpecaya serta mampu memberikan layanan yang baik dan berkualitas tinggi serta terjangkau oleh pasar, baik lokal maupun regional. Mampu memberikan solusi yang tepat kepada konsumen sesuai dengan kebutuhan konsumen. Misi kami membangun, mengembangkan dan meningkatkan kemandirian melalui semangat kewirausahaan yang tinggi baik secara internal maupun eksternal sehingga memberikan dampak yang positif bagi kemajuan perekonomian masyarakat umumnya dan kepada anggota team Creative pada khususnya.
 
-Misi Perusahaan:
-Membangun, mengembangkan dan meningkatkan kemandirian melalui semangat kerja dan kreatifitas yang tinggi kepada setiap tim sehingga hasil yang dicapai berdampak positif bagi kemajuan dan kesejahteraan tim Creative Com (KGS) pada khususnya serta masyarakat luas pada umumnya.
+BUDAYA
+Mengembangkan budaya kerja yang mandiri, kreatif, dan profesional serta didukung pola hubungan kerja yang positif atas azas kekeluargaan. Menganut model organisasi fungsional, setiap orang adalah bagian dari Tim yang menjalankan tugasnya berdasarkan deskripsi fungsi. Tidak tergantung perintah dan hirarki, setiap orang bebas berinisiatif. Lingkungan mendukung setiap orang mencapai prestasi terbaik. Tim memberikan dorongan, stimulasi dan motivasi dalam orientasi pelaksanaan tugas secara efektif dan konstruktif. Tujuan tim meningkatkan produktifitas dan hasil maksimal kepada pelanggan.
 
-Budaya Kerja Organisasi:
-Mengembangkan budaya kerja yang mandiri, kreatif, dan profesional serta didukung pola hubungan kerja yang positif atas azas kekeluargaan. Menganut model organisasi fungsional, setiap orang adalah bagian dari Tim yang menjalankan tugasnya berdasarkan deskripsi fungsi. Tidak tergantung perintah dan hirarki, setiap orang bebas berinisiatif.`,
+KOMITMEN
+Kami percaya, kepuasan pelanggan diperoleh dari penyelesaian masalah secara konstruktif, cepat dan tepat. Tugas kami memberikan solusi dan layanan terbaik sesuai kondisi setiap pelanggan. Kepuasan Pelanggan adalah target utama dan promosi yang efektif.`,
     isPublished: true,
     sortOrder: 2,
     updatedAt: "2026-10-18 10:00"
@@ -1365,17 +1552,17 @@ Kami menerapkan prosedur teknis dan manajemen yang ketat untuk mengamankan data 
 Kami tidak akan menjual, menyewakan, atau membagikan informasi kontak pribadi atau data korporasi Anda kepada pihak ketiga manapun untuk tujuan pemasaran komersial tanpa persetujuan eksplisit dari Anda, kecuali jika diwajibkan oleh peraturan hukum yang berlaku di Republik Indonesia.
 
 4. Hubungi Kami
-Apabila Anda memiliki pertanyaan mengenai kebijakan privasi ini atau ingin memperbarui data kontak Anda, silakan hubungi kami melalui email: info@kgs.net.id atau kantor operasional kami di Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113.`,
+Apabila Anda memiliki pertanyaan mengenai kebijakan privasi ini atau ingin memperbarui data kontak Anda, silakan hubungi kami melalui email: info@creative.co.id atau kantor operasional kami di Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113.`,
     isPublished: true,
     sortOrder: 3,
     updatedAt: "2026-10-18 10:00"
   },
   {
     id: "page-4",
-    title: "Infrastruktur Jaringan, Solusi Keamanan & Internet Service Provider",
+    title: "System Integrator, Security Solution & Internet Provider",
     slug: "beranda",
-    summary: "Mitra teknologi B2B terpercaya sejak 1997. Kami merancang, membangun, dan mengelola solusi jaringan fiber optic, tower guywire mandiri, sistem pengawasan CCTV AI, proteksi petir & grounding < 2 Ohm, serta koneksi internet berlisensi resmi KGSNet.",
-    content: `PT. Kreatif Global Solusindo (KGS) menghadirkan infrastruktur jaringan komputer, fiber optik NETVIEL, sentral telepon PABX Panasonic, radio komunikasi 2-arah, pengawasan CCTV Sony & Hikvision, proteksi penangkal petir, serta koneksi internet KGSNet resmi APJII dengan dukungan NOC Siaga 24/7 dan SLA 99.5% Uptime.`,
+    summary: "Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo. Dengan didukung team teknisi yang terlatih dan berpengalaman, melayani berbagai kebutuhan masyarakat, baik perseorangan maupun kebutuhan kantor.",
+    content: `PT. Kreatif Global Solusindo (KGS) menghadirkan Product & Service terintegrasi: Security (FIRE & ALARM SECURITY, CCTV, Access Door, Video Door Phone), Networking (Router, Wireless), PBX (ANALOGUE PBX, HYBRID PBX, IP – PBX), Telecommunication (LIGHTNING PROTECTOR: Handy Talky, CONFERENCE SYSTEM, LIGHTNING PROTECTOR; Tower: Guy Wire Tower, SELF SUPPORTING TOWER MONOPOLE), serta Internet Service Provider resmi Kominfo RI (Internet Dedicated, Internet Bisnis, Home Internet).`,
     isPublished: true,
     sortOrder: 4,
     updatedAt: "2026-10-18 10:00"
@@ -1384,31 +1571,36 @@ Apabila Anda memiliki pertanyaan mengenai kebijakan privasi ini atau ingin mempe
     id: "page-5",
     title: "Tentang PT. Kreatif Global Solusindo",
     slug: "tentang-kami",
-    summary: "Berawal dari Creative Com pada tahun 1997 di Palembang hingga bertransformasi menjadi penyelenggara jasa internet dan system integrator berlisensi nasional.",
-    content: `Perjalanan dedikasi teknologi dimulai sejak berdirinya CV. CREATIVE pada tahun 1997 di Palembang, berkembang menjadi distributor perangkat telekomunikasi wartel QPHONE (1998), dealer resmi PABX Panasonic (2002), instalasi jaringan LAN/WLAN, radio komunikasi & menara tower (2004), transformasi badan hukum PT. Kreatif Global Solusindo (2013), hingga resmi berizin sebagai Penyelenggara Jasa Internet (ISP) KGSNet dan anggota APJII (2020).`,
+    summary: "Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo. Dengan didukung team teknisi yang terlatih dan berpengalaman, melayani berbagai kebutuhan masyarakat, baik perseorangan maupun kebutuhan kantor.",
+    content: `Creative Com, dengan badan usaha CV. Creative berkantor di Palembang berdiri sejak tahun 1997. Selanjutnya di 2013 ini ditingkatkan menjadi PT. Kreatif Global Solusindo. Dengan didukung team teknisi yang terlatih dan berpengalaman, melayani berbagai kebutuhan masyarakat, baik perseorangan maupun kebutuhan kantor.`,
     isPublished: true,
     sortOrder: 5,
     updatedAt: "2026-10-18 10:00"
   },
   {
     id: "page-6",
-    title: "5 Segmen Layanan & Solusi Terintegrasi",
+    title: "Produk & Layanan",
     slug: "layanan",
-    summary: "Infrastruktur komputasi, telekomunikasi radio & PABX, surveillance keamanan CCTV, internet ISP KGSNet, hingga fabrikasi tower dan sistem proteksi petir.",
-    content: `Katalog lengkap 5 segmen layanan utama PT. Kreatif Global Solusindo: (1) Computer & Networking, (2) Telecommunication, (3) Video Surveillance / CCTV, (4) Internet Service Provider (KGSNet), dan (5) Another Service (Tower Erection, Penangkal Petir Grounding < 2 Ohm, AIS Maritim, Fire Alarm, dan Video Conference).`,
+    summary: "Security, Networking, PBX, Telecommunication (LIGHTNING PROTECTOR & Tower), serta Internet Service Provider berizin resmi Kominfo RI dalam 3 Segmen (Internet Dedicated, Internet Bisnis, Home Internet).",
+    content: `Katalog lengkap Produk & Layanan PT. Kreatif Global Solusindo:
+- Security : FIRE & ALARM SECURITY, CCTV, Access Door, Video Door Phone
+- Networking : Router, Wireless
+- PBX : ANALOGUE PBX, HYBRID PBX, IP – PBX
+- Telecommunication : LIGHTNING PROTECTOR (Handy Talky, CONFERENCE SYSTEM, LIGHTNING PROTECTOR) & Tower (Guy Wire Tower, SELF SUPPORTING TOWER MONOPOLE)
+- Internet Service Provider : Legalitas Kominfo RI Nomor 674/TEL.02.02/2020, SKLO Nomor 375/TEL.04.02/2020, NIB 9120202100598 dengan 3 Segmen (Internet Dedicated, Internet Bisnis, Home Internet).`,
     isPublished: true,
     sortOrder: 6,
     updatedAt: "2026-10-18 10:00"
   },
   {
     id: "page-7",
-    title: "Pilihan Paket Solusi & Layanan B2B",
+    title: "Paket Internet Service Provider (ISP) & Segmen Produk Layanan Lainnya",
     slug: "harga",
-    summary: "Struktur paket transparan yang dirancang khusus untuk kebutuhan konektivitas bisnis, keamanan terpadu, infrastruktur remote site, dan pengadaan proyek pemerintah/BUMN dengan SLA terjamin.",
-    content: `Setiap paket solusi bisnis B2B didukung oleh tim engineer bersertifikasi untuk melaksanakan survei lokasi (on-site survey) dan menyusun Bill of Quantity (BoQ) yang presisi sesuai kebutuhan infrastruktur perusahaan, pabrik, rumah sakit, atau instansi pemerintah.`,
+    summary: "Daftar paket berlangganan 3 Segmen Internet Service Provider (Internet Dedicated, Internet Bisnis, dan Home Internet) berizin resmi Kominfo RI, serta solusi segmen Produk & Layanan lainnya (Security, Networking, PBX, dan Telecommunication) berbasis konsultasi teknis & survei lokasi.",
+    content: `Layanan Internet Service Provider PT. Kreatif Global Solusindo (Izin Kominfo RI Nomor: 674/TEL.02.02/2020, SKLO Nomor: 375/TEL.04.02/2020, NIB: 9120202100598) tersedia dalam 3 Segmen utama: Internet Dedicated (UMKM, Sekolah, Corporate), Internet Bisnis (10 Mbps s/d 200 Mbps), dan Home Internet (10 Mbps s/d 200 Mbps), dilengkapi segmen Produk & Layanan lainnya (Security, Networking, PBX, dan Telecommunication).`,
     isPublished: true,
     sortOrder: 7,
-    updatedAt: "2026-10-18 10:00"
+    updatedAt: "2026-10-25 12:00"
   },
   {
     id: "page-8",
@@ -1424,15 +1616,17 @@ Apabila Anda memiliki pertanyaan mengenai kebijakan privasi ini atau ingin mempe
     id: "page-9",
     title: "Portofolio Proyek & Klien Korporasi",
     slug: "portofolio",
-    summary: "Bukti nyata dedikasi teknis PT. KGS: dari pabrikasi mandiri tower guywire dan pengujian grounding di bawah 2 Ohm, hingga integrasi jaringan dan sistem keamanan untuk 100+ mitra BUMN dan korporasi.",
-    content: `Dokumentasi pengerjaan instalasi lapangan oleh tim teknisi PT. Kreatif Global Solusindo di berbagai sektor strategis: BUMN, perbankan, rumah sakit, perkebunan kelapa sawit, pertambangan batubara, pembangkit listrik PLN, dan navigasi pelabuhan.`,
+    summary: "Sejak 1997, banyak pekerjaan yang telah dilakukan, baik terhadap konsumen perorangan, badan usaha, instansi pemerintah maupun BUMN. Ruang layanan pun tidak terbatas di kota Palembang, melainkan juga sampai seluruh kabupaten/kota di provinsi Sumatera Selatan hingga keprovinsi lain seperti Bangka Belitung, Jambi, Riau, Sumatera Barat, Sumatera Utara, Lampung, Bengkulu, Kalimantan Barat, Kalimantan Timur, Bekasi dan Jakarta.",
+    content: `Sejak 1997, banyak pekerjaan yang telah dilakukan, baik terhadap konsumen perorangan, badan usaha, instansi pemerintah maupun BUMN. Ruang layanan pun tidak terbatas di kota Palembang, melainkan juga sampai seluruh kabupaten/kota di provinsi Sumatera Selatan hingga keprovinsi lain seperti Bangka Belitung, Jambi, Riau, Sumatera Barat, Sumatera Utara, Lampung, Bengkulu, Kalimantan Barat, Kalimantan Timur, Bekasi dan Jakarta.
+
+Polahubungan yang sehat tidak saja dikembangkan dalam lingkungan internal, namun juga terhadap lingkungan eksternal. Pesaing tidak dianggap sebagai pesaing, melainkan sebagai mitra atau partner. Client atau konsumen tidak dianggap sebagai objek, melainkan sebagai Stakeholders. Karena dengan dukungan dari rekan konsumenlah, perusahaan dapat bertahan dan berkembang hingga saat ini. Halaman berikut, adalah beberapa client dan pekerjaan sesuai keahlian yang telah dikerjakan ;`,
     isPublished: true,
     sortOrder: 9,
     updatedAt: "2026-10-18 10:00"
   },
   {
     id: "page-10",
-    title: "Hubungi Tim PT. Kreatif Global Solusindo",
+    title: "Hubungi Kami — PT. Kreatif Global Solusindo",
     slug: "kontak",
     summary: "Konsultasikan kebutuhan infrastruktur IT, telekomunikasi, kamera pengawas, penangkal petir, atau koneksi ISP KGSNet bersama tim ahli kami. Permintaan penawaran akan langsung terhubung ke WhatsApp Customer Service resmi kami.",
     content: `Alamat Kantor (Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113) siap melayani konsultasi teknis, survei lokasi, dan pengajuan penawaran resmi.`,
@@ -1449,6 +1643,56 @@ Apabila Anda memiliki pertanyaan mengenai kebijakan privasi ini atau ingin mempe
     isPublished: true,
     sortOrder: 11,
     updatedAt: "2026-10-18 10:00"
+  },
+  {
+    id: "page-12",
+    title: "Slide Show Infrastruktur & Solusi Teknologi",
+    slug: "slideshow",
+    summary: "Galeri interaktif dan penjelasan teknis 8 infrastruktur utama PT. Kreatif Global Solusindo (Creative.co.id): Fiber Optik, Self Supporting Tower Monopole, Guy Wire Tower, Lightning Protector, IP – PBX, Wireless, Access Door, dan CCTV.",
+    content: `Jelajahi galeri multi-gambar dan spesifikasi teknis dari setiap kategori solusi infrastruktur telekomunikasi, jaringan, keamanan, dan menara yang dikerjakan oleh tim engineer PT. Kreatif Global Solusindo sejak 1997.`,
+    isPublished: true,
+    sortOrder: 12,
+    updatedAt: "2026-10-25 10:00"
+  },
+  {
+    id: "page-13",
+    title: "Promo Spesial & Penawaran Unggulan PT. KGS",
+    slug: "promo",
+    summary: "Nikmati program promo instalasi internet KGSNet (Home, Bisnis & Dedicated), paket bundling CCTV IP Camera, audit jaringan Fiber Optik, dan uji grounding penangkal petir bersertifikat.",
+    content: `Program promo resmi PT. Kreatif Global Solusindo dirancang untuk membantu instansi pemerintah, BUMN, korporasi, sekolah, UMKM, maupun pelanggan residensial memperoleh infrastruktur TI, keamanan, dan konektivitas internet terbaik dengan penghematan biaya instalasi dan perangkat.`,
+    isPublished: true,
+    sortOrder: 13,
+    updatedAt: "2026-10-28 08:00"
+  },
+  {
+    id: "page-14",
+    title: "Client / Pelanggan Terverifikasi Sejak 1997",
+    slug: "klien",
+    summary: "Daftar institusi pemerintah, BUMN, perbankan, rumah sakit, perkebunan, pendidikan, perhotelan, dan korporasi swasta yang telah mempercayakan infrastruktur teknologinya kepada PT. Kreatif Global Solusindo.",
+    content: `Sejak berdiri tahun 1997 (Creative Com) hingga bertransformasi menjadi PT. Kreatif Global Solusindo (2013), kami memandang setiap client/pelanggan sebagai mitra jangka panjang (Stakeholders).`,
+    isPublished: true,
+    sortOrder: 14,
+    updatedAt: "2026-10-28 08:00"
+  },
+  {
+    id: "page-15",
+    title: "Kemitraan Strategis & Prinsipal Teknologi Resmi",
+    slug: "kemitraan",
+    summary: "Sinergi kemitraan resmi PT. Kreatif Global Solusindo bersama prinsipal teknologi global, asosiasi penyelenggara jasa internet (APJII), dan vendor perangkat telekomunikasi & keamanan terkemuka.",
+    content: `PT. Kreatif Global Solusindo didukung oleh ekosistem kemitraan prinsipal resmi (Authorized Dealer, Certified Integrator & Official Member) untuk menjamin keaslian perangkat, ketersediaan suku cadang, dan garansi purna jual terbaik bagi seluruh pelanggan.`,
+    isPublished: true,
+    sortOrder: 15,
+    updatedAt: "2026-10-28 08:00"
+  },
+  {
+    id: "page-16",
+    title: "Testimoni Client / Pelanggan & Instansi",
+    slug: "testimoni",
+    summary: "Ulasan dan apresiasi nyata dari para pimpinan IT, manajer operasional, instansi pemerintahan, BUMN, rumah sakit, dan pelanggan setia PT. Kreatif Global Solusindo.",
+    content: `Kepuasan pelanggan diperoleh dari penyelesaian masalah secara konstruktif, cepat, dan tepat. Berikut adalah pengalaman langsung dari berbagai instansi dan pelanggan yang telah menggunakan layanan System Integrator, Security Solution & Internet Service Provider KGSNet.`,
+    isPublished: true,
+    sortOrder: 16,
+    updatedAt: "2026-10-28 08:00"
   }
 ];
 
@@ -1468,10 +1712,14 @@ export function resolveUrlToPageSlug(url: string): string {
     'tentang.php': 'tentang-kami',
     'tentang-kami.php': 'tentang-kami',
     'layanan.php': 'layanan',
+    'promo.php': 'promo',
+    'klien.php': 'klien',
+    'kemitraan.php': 'kemitraan',
+    'testimoni.php': 'testimoni',
+    'slideshow.php': 'slideshow',
     'harga.php': 'harga',
     'faq.php': 'faq',
     'portofolio.php': 'portofolio',
-    'klien.php': 'portofolio',
     'kontak.php': 'kontak',
     'blog.php': 'blog',
     'kebijakan-privasi.php': 'kebijakan-privasi'
@@ -1487,10 +1735,18 @@ export function resolvePageSlugToUrl(slug: string): string {
     'tentang-kami': 'tentang.php',
     'tentang': 'tentang.php',
     'layanan': 'layanan.php',
+    'produk-layanan': 'layanan.php',
+    'promo': 'promo.php',
+    'klien': 'klien.php',
+    'client-pelanggan': 'klien.php',
+    'kemitraan': 'kemitraan.php',
+    'testimoni': 'testimoni.php',
+    'slideshow': 'slideshow.php',
     'harga': 'harga.php',
     'faq': 'faq.php',
     'portofolio': 'portofolio.php',
     'kontak': 'kontak.php',
+    'hubungi-kami': 'kontak.php',
     'blog': 'blog.php',
     'kebijakan-privasi': 'kebijakan-privasi.php'
   };
@@ -1532,8 +1788,8 @@ export const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
   {
     id: "log-2",
     username: "admin_kgs",
-    action: "Sinkronisasi Katalog Layanan",
-    details: "Verifikasi 22 layanan dan 96+ portofolio klien selesai",
+    action: "Sinkronisasi Katalog Product & Service",
+    details: "Verifikasi katalog Product & Service dan 96+ portofolio klien selesai",
     ipAddress: "127.0.0.1",
     createdAt: "2026-10-17 06:20"
   },
@@ -1561,87 +1817,192 @@ export interface PricingPlanItem {
 
 export const B2B_PRICING_PLANS: PricingPlanItem[] = [
   {
-    id: "plan-internet",
-    name: "Dedicated Internet B2B (KGSNet)",
-    subtitle: "Koneksi simetris tanpa kuota untuk operasional kantor & pabrik",
-    targetAudience: "Perkantoran, Kampus, Perbankan & Pabrik",
-    badge: "Paling Diminati",
+    id: "plan-isp-dedicated",
+    name: "Internet Dedicated",
+    subtitle: "Segmen 1 · Koneksi Dedicated Simetris 1:1 Berizin Resmi Kominfo RI",
+    targetAudience: "Kebutuhan UMKM, Kebutuhan Sekolah & Kebutuhan Corporate",
+    badge: "Segmen 1 · Dedicated",
     isPopular: true,
-    sla: "SLA 99.5% Uptime Garansi",
+    sla: "Kominfo 674/TEL.02.02/2020 & SKLO 375/TEL.04.02/2020",
     features: [
-      "Bandwidth 1:1 CIR Simetris (Upload & Download setara)",
-      "Redundant Fiber Optic & Wireless Failover",
-      "Dedicated IP Public /29 Static",
-      "Koneksi Router BGP Peering Neucentrix Data Center",
-      "Akses Monitoring MRTG Real-Time untuk IT Team",
-      "Dukungan NOC 24/7 & Technical Support Siaga"
+      "10 Mbps — Harga Perbulan mulai 3.500.000 (Kebutuhan UMKM)",
+      "10 Mbps — Harga Perbulan mulai 1.750.000 (Kebutuhan Sekolah)",
+      "10 Mbps — Harga Perbulan mulai 1.750.000 (Kebutuhan Corporate)",
+      "Izin Kominfo RI Nomor ; 674/TEL.02.02/2020 tanggal 19 Agustus 2020",
+      "SKLO Kominfo RI Nomor ; 375/TEL.04.02/2020 tanggal 27 Oktober 2020",
+      "NIB (Nomor Induk Berusaha) ; 9120202100598"
     ],
-    recommendedFor: "Konektivitas stabil untuk ERP, Video Conference, Cloud Server, dan transaksi perbankan"
+    recommendedFor: "UMKM, Sekolah/Kampus, dan Perusahaan Corporate yang membutuhkan jaminan bandwidth dedicated dan dukungan NOC 24/7"
   },
   {
-    id: "plan-security",
-    name: "Integrated Surveillance & Security",
-    subtitle: "Sistem keamanan visual AI, NVR terpusat & kontrol akses fisik",
-    targetAudience: "Gudang Logistik, Pelabuhan, Pabrik & Rumah Sakit",
-    sla: "Garansi Hardware 1-2 Tahun",
+    id: "plan-isp-bisnis",
+    name: "Internet Bisnis",
+    subtitle: "Segmen 2 · Paket Internet Bisnis Cepat & Stabil Tanpa Kuota",
+    targetAudience: "Ruko, Kantor Operasional, Klinik, Retail & Pelaku Bisnis",
+    badge: "Segmen 2 · Bisnis",
+    isPopular: false,
+    sla: "Mulai Rp. 407.000 / bulan",
     features: [
-      "IP Camera AI Human & Vehicle Detection High Resolution",
-      "Penyimpanan NVR Enterprise dengan RAID Storage Redundant",
-      "Access Control Biometrik Wajah / Sidik Jari & RFID",
-      "Integrasi Barrier Gate Otomatis & Walkthrough Metal Detector",
-      "Instalasi Kabel UTP Belden / FO Armor Standar Industri",
-      "Pemeliharaan Berkala & On-Site Emergency Service"
+      "10 Mbps — Rp. 407.000 / bulan",
+      "20 Mbps — Rp. 431.000 / bulan",
+      "30 Mbps — Rp. 453.000 / bulan",
+      "40 Mbps — Rp. 477.000 / bulan",
+      "50 Mbps — Rp. 511.000 / bulan",
+      "100 Mbps — Rp. 1.050.000 / bulan",
+      "200 Mbps — Rp. 1.560.000 / bulan"
     ],
-    recommendedFor: "Monitoring keamanan perimeter luas, audit kepatuhan ISO/K3, dan pengawasan aset vital"
+    recommendedFor: "Operasional bisnis harian, kasir POS, transaksi online, CCTV cloud, dan koneksi Wi-Fi karyawan/pelanggan"
   },
   {
-    id: "plan-tower-radio",
-    name: "Tower Guywire & Radio Remote Site",
-    subtitle: "Infrastruktur telekomunikasi untuk area blank spot & perkebunan",
-    targetAudience: "Perkebunan Sawit, Pertambangan & Area Offshore",
-    badge: "Spesialisasi Lapangan",
-    sla: "Sertifikasi Grounding < 2 Ohm",
+    id: "plan-isp-home",
+    name: "Home Internet",
+    subtitle: "Segmen 3 · Internet Rumah Tangga Unlimited & Nyaman untuk Keluarga",
+    targetAudience: "Rumah Tangga, Perumahan, Work From Home & Belajar Online",
+    badge: "Segmen 3 · Home",
+    isPopular: false,
+    sla: "Mulai Rp. 252.000 / bulan",
     features: [
-      "Pabrikasi Mandiri Guywire Tower 20m - 40m di Workshop KGS",
-      "Instalasi Grounding System Teruji < 2 Ohm (Earth Tester)",
-      "Radio Komunikasi Repeater VHF/UHF, RIG & Handy Talky",
-      "Wireless Point-to-Point (PTP) Jarak Jauh hingga 30+ KM",
-      "Head Head Penangkal Petir & Penahan Kawat Seling Baja",
-      "Tim Bersertifikasi K3 Ketinggian (Working at Height)"
+      "10 Mbps — Rp. 252.000 / bulan (Optiman di 5 Perangkat)",
+      "20 Mbps — Rp. 276.000 / bulan (Optiman di 7 Perangkat)",
+      "30 Mbps — Rp. 298.000 / bulan (Optiman di 9 Perangkat)",
+      "50 Mbps — Rp. 450.000 / bulan (Optiman di 12 Perangkat)",
+      "100 Mbps — Rp. 710.000 / bulan (Optiman di 15 Perangkat)",
+      "200 Mbps — Rp. 1.100.000 / bulan (Optiman di 20 Perangkat)"
     ],
-    recommendedFor: "Komunikasi suara dan data antar pos jauh di area perkebunan sawit, tambang batu bara, dan pelabuhan"
+    recommendedFor: "Kebutuhan internet keluarga di rumah, streaming HD, gaming, kuliah daring, dan aktivitas multi-perangkat"
+  }
+];
+
+export interface OtherProductServiceSubItem {
+  name: string;
+  description: string;
+}
+
+export interface OtherProductServiceSegment {
+  id: string;
+  code: string;
+  segmentLabel: string;
+  name: string;
+  subtitle: string;
+  targetAudience: string;
+  schemeLabel: string;
+  items: OtherProductServiceSubItem[];
+  brands: string[];
+  recommendedFor: string;
+}
+
+export const OTHER_PRODUCT_SERVICE_SEGMENTS: OtherProductServiceSegment[] = [
+  {
+    id: "seg-security",
+    code: "SEC",
+    segmentLabel: "Segmen Security • System Integrator",
+    name: "Security Solution",
+    subtitle: "Solusi sistem pengamanan gedung, pengawasan kamera tertutup, kontrol akses pintu elektronik, dan proteksi kebakaran terintegrasi.",
+    targetAudience: "Gedung Perkantoran, Perbankan, Rumah Sakit, Pabrik & Kawasan Industri",
+    schemeLabel: "Konsultasi Teknis & Survei Lokasi (Sesuai Kebutuhan Proyek)",
+    items: [
+      {
+        name: "FIRE & ALARM SECURITY",
+        description: "Instalasi Master Control Fire Alarm (MCFA), detektor asap & panas (Smoke/Heat Detector), Manual Call Point, sirine evakuasi, serta sensor alarm anti-intrusi."
+      },
+      {
+        name: "CCTV (Closed Circuit Television)",
+        description: "Sistem pengawasan kamera keamanan CCTV Analog HD & IP Network Camera beresolusi tinggi dengan konfigurasi NVR/DVR dan monitoring terpusat."
+      },
+      {
+        name: "Access Door (Access Control)",
+        description: "Sistem kunci pintu elektronik menggunakan akses Kartu ID (RFID Proximity/Mifare), PIN keypad, dan biometrik sidik jari/wajah."
+      },
+      {
+        name: "Video Door Phone",
+        description: "Sistem interkom komunikasi audio-visual pintu masuk dua arah untuk verifikasi tamu yang terintegrasi dengan kunci elektrik."
+      }
+    ],
+    brands: ["Sony", "Hikvision", "Dahua", "Panasonic", "BOSCH", "Honeywell", "Rosslare", "HID", "Commax"],
+    recommendedFor: "Pengamanan fasilitas vital, ruang server, brankas perbankan, rumah sakit, hotel, dan area pabrik industri"
   },
   {
-    id: "plan-solar-power",
-    name: "Solar Cell & Industrial Power Backup",
-    subtitle: "Penyedia daya mandiri ramah lingkungan & perlindungan lonjakan",
-    targetAudience: "Site BTS Remote, Rumah Sakit, Tambang & Cold Storage",
-    sla: "Garansi Efisiensi Panel 10 Tahun",
-    features: [
-      "Panel Surya Monocrystalline Grade Industri Heavy Duty",
-      "Smart MPPT Inverter Solar Charge Controller",
-      "Battery Bank Deep Cycle Gel / LiFePO4 Kapasitas Tinggi",
-      "Online Double Conversion UPS & Automatic Transfer Switch (ATS)",
-      "Proteksi Penangkal Petir & Surge Arrester Khusus DC/AC",
-      "Sistem Monitoring Beban & Kapasitas Baterai Real-Time"
+    id: "seg-networking",
+    code: "NET",
+    segmentLabel: "Segmen Networking • Infrastruktur IT",
+    name: "Networking & Fiber Optik",
+    subtitle: "Perancangan, instalasi, dan manajemen infrastruktur jaringan kabel serat optik (Fiber Optik), LAN, Router enterprise, dan transmisi Wireless.",
+    targetAudience: "Perkantoran, Kampus, Rumah Sakit, Perkebunan, Pelabuhan & Gudang",
+    schemeLabel: "Konsultasi Teknis & Survei Lokasi (Sesuai Topologi Jaringan)",
+    items: [
+      {
+        name: "Router & Manajemen Jaringan",
+        description: "Konfigurasi Router enterprise untuk manajemen bandwidth (QoS), pembagian VLAN, Firewall, VPN antar cabang, Load Balancing, Failover, dan routing BGP/OSPF."
+      },
+      {
+        name: "Wireless (Jaringan Nirkabel)",
+        description: "Instalasi jaringan Wireless LAN (Wi-Fi Indoor/Outdoor seamless roaming) serta link transmisi radio Point-to-Point (PTP) & Point-to-Multipoint (PTMP) jarak jauh."
+      },
+      {
+        name: "Fiber Optik & Structured Cabling",
+        description: "Penarikan, terminasi Fusion Splicing, dan uji OTDR jaringan kabel serat optik (Fiber Optik) backbone berkecepatan gigabit serta instalasi kabel LAN UTP/STP."
+      }
     ],
-    recommendedFor: "Lokasi operasional 24 jam tanpa aliran listrik PLN yang stabil atau proteksi beban server kritis"
+    brands: ["MikroTik (Certified MTCNA)", "Ubiquiti", "Cisco", "Ruijie", "Cambium Networks", "NETVIEL (Authorized Reseller)"],
+    recommendedFor: "Interkoneksi jaringan antar gedung/pabrik, distribusi Wi-Fi korporat, dan link komunikasi data site remote"
   },
   {
-    id: "plan-custom-tender",
-    name: "Enterprise Turnkey & Pengadaan BUMN",
-    subtitle: "Perancangan menyeluruh, penyusunan BoQ dan pelaksanaan tender",
-    targetAudience: "Instansi Pemerintah, BUMN, Kontraktor EPC & Multinasional",
-    sla: "Kontrak Sesuai Dokumen KAK / TOR",
-    features: [
-      "Free Site Survey Lapangan (Uji LOS, Resistansi Tanah & Topologi)",
-      "Penyusunan Bill of Quantity (BoQ) & Rencana Anggaran Biaya (RAB)",
-      "Kemitraan Resmi Dealer (Panasonic, Sony, Netviel, Hikvision)",
-      "Kelengkapan Dokumen Legalitas (NIB, SIUP, NPWP, PKP, Sertifikasi)",
-      "Manajemen Proyek Dedicated dengan Berita Acara (BAST) Resmi",
-      "Skema Pembayaran Fleksibel Berdasarkan Termin Proyek"
+    id: "seg-pbx",
+    code: "PBX",
+    segmentLabel: "Segmen PBX • Komunikasi Korporasi",
+    name: "PBX Communication System",
+    subtitle: "Sistem sentral komunikasi telepon internal dan eksternal kantor mulai dari PABX Analog, Hybrid, hingga IP – PBX terpadu.",
+    targetAudience: "Kantor Operasional, Hotel, Rumah Sakit, Perbankan & Perusahaan Multi-Cabang",
+    schemeLabel: "Konsultasi Teknis & Survei Lokasi (Sesuai Kapasitas Ekstensi)",
+    items: [
+      {
+        name: "ANALOGUE PBX",
+        description: "Sistem sentral telepon PABX Analog yang handal untuk distribusi ekstensi antar ruangan/lantai dengan fitur Call Transfer, Hunting Group, Toll Restriction & Billing."
+      },
+      {
+        name: "HYBRID PBX",
+        description: "Sistem sentral telepon Hybrid yang memadukan fleksibilitas jalur telepon analog, digital key telephone, Auto Attendant (DISA/IVR), NurseCall/Paging, dan ekstensi IP."
+      },
+      {
+        name: "IP – PBX",
+        description: "Perangkat switching komunikasi telepon dan data berbasis protokol internet (VoIP / SIP Trunk) yang menggabungkan jaringan suara, data, dan video antar cabang."
+      }
     ],
-    recommendedFor: "Kebutuhan integrasi multi-disiplin komputasi, jaringan, telekomunikasi, dan sistem proteksi menyeluruh"
+    brands: ["Panasonic (Authorized Dealer)", "NEC", "DINSTAR", "Grandstream", "Yeastar"],
+    recommendedFor: "Komunikasi telepon terpusat hotel, rumah sakit, kantor pemerintahan, dan interkoneksi suara gratis antar cabang"
+  },
+  {
+    id: "seg-telecom",
+    code: "TEL",
+    segmentLabel: "Segmen Telecommunication • Proteksi Petir & Tower",
+    name: "Telecommunication, Lightning Protector & Tower",
+    subtitle: "Solusi perangkat telekomunikasi radio lapangan, sistem konferensi ruang rapat, instalasi penyalur petir & grounding, serta fabrikasi menara telekomunikasi.",
+    targetAudience: "Perkebunan Sawit, Pertambangan, Pembangkit Listrik (PLN), BUMN & Pelabuhan",
+    schemeLabel: "Konsultasi Teknis & Survei Lokasi (Sesuai Spesifikasi Lapangan)",
+    items: [
+      {
+        name: "LIGHTNING PROTECTOR (Penyalur Petir & Grounding)",
+        description: "Instalasi batang penyalur petir, kabel konduktor tembaga, tempat pembumian (grounding) dengan uji Earth Tester < 2 Ohm, serta Surge Arrester panel MDP."
+      },
+      {
+        name: "Handy Talky & Radio Komunikasi",
+        description: "Pengadaan dan instalasi radio komunikasi VHF/UHF/SSB, Base Station RIG, Marine Radio, stasiun Repeater, serta AIS (Automatic Identification System) Maritim."
+      },
+      {
+        name: "CONFERENCE SYSTEM",
+        description: "Instalasi sistem audio-video konferensi ruang rapat dan aula menggunakan mikrofon Chairman & Delegate, kamera PTZ, dan tata suara terintegrasi."
+      },
+      {
+        name: "Guy Wire Tower",
+        description: "Fabrikasi mandiri di workshop internal dan ereksi menara segitiga yang ditopang dengan tali-tali baja (guywire) yang diangkurkan pada landasan tanah."
+      },
+      {
+        name: "SELF SUPPORTING TOWER MONOPOLE",
+        description: "Konstruksi dan ereksi menara mandiri Self Supporting Tower (SST) serta tiang tunggal Monopole berintegritas struktural tinggi tanpa bentangan kawat skur."
+      }
+    ],
+    brands: ["Creative Com Workshop Fabrication", "KURN", "ERICO", "VIKING", "Motorola", "ICOM", "Kenwood", "BOSCH", "TOA"],
+    recommendedFor: "Pembangunan infrastruktur menara komunikasi, proteksi sambaran petir fasilitas industri, dan radio komunikasi jarak jauh"
   }
 ];
 
@@ -1657,13 +2018,13 @@ export const FAQ_DATA: FaqItem[] = [
     id: "faq-1",
     category: "Umum",
     question: "Apa cakupan wilayah layanan operasional PT. Kreatif Global Solusindo?",
-    answer: "PT. KGS berkantor pusat di Palembang dan memiliki rekam jejak operasional luas di seluruh Sumatera Selatan, Kepulauan Bangka Belitung, Jambi, Riau, Sumatera Utara, hingga wilayah Kalimantan Barat, Kalimantan Timur, dan kawasan industri Cikarang (Jawa Barat). Kami siap mengirimkan tim teknis ke lokasi remote di seluruh Indonesia."
+    answer: "Sejak 1997, ruang layanan tidak terbatas di kota Palembang, melainkan juga sampai seluruh kabupaten/kota di provinsi Sumatera Selatan hingga ke provinsi lain seperti Bangka Belitung, Jambi, Riau, Sumatera Barat, Sumatera Utara, Lampung, Bengkulu, Kalimantan Barat, Kalimantan Timur, Bekasi dan Jakarta."
   },
   {
     id: "faq-2",
     category: "Internet ISP",
-    question: "Apakah KGS memiliki izin resmi sebagai Penyelenggara Jasa Internet (ISP)?",
-    answer: "Ya. PT. Kreatif Global Solusindo mengoperasikan layanan KGSNet dengan Izin Penyelenggaraan Jasa Akses Internet resmi dari Kementerian Komunikasi dan Informatika (Kemenkominfo) RI serta merupakan anggota resmi Asosiasi Penyelenggara Jasa Internet Indonesia (APJII) sejak tahun 2020. Kami memiliki koneksi BGP Peering langsung dengan Neucentrix Data Center."
+    question: "Apa saja legalitas resmi Internet Service Provider (ISP) PT. Kreatif Global Solusindo?",
+    answer: "PT. Kreatif Global Solusindo memiliki legalitas resmi ISP meliputi: (1) Izin Penyelenggaraan Jasa Telekomunikasi Kominfo RI Nomor ; 674/TEL.02.02/2020 tanggal 19 Agustus 2020, (2) Surat Keterangan Laik Operasi Kominfo RI Nomor ; 375/TEL.04.02/2020 tanggal 27 Oktober 2020, dan (3) NIB (Nomor Induk Berusaha) ; 9120202100598."
   },
   {
     id: "faq-3",
@@ -1680,14 +2041,14 @@ export const FAQ_DATA: FaqItem[] = [
   {
     id: "faq-5",
     category: "Internet ISP",
-    question: "Berapa Service Level Agreement (SLA) dan bagaimana dukungan teknis 24/7?",
-    answer: "Kami memberikan garansi Service Level Agreement (SLA) hingga 99.5% untuk koneksi Dedicated Internet B2B. Network Operation Center (NOC) KGS beroperasi 24 jam sehari, 7 hari seminggu dengan waktu tanggap (response time) remote maksimal 15 menit dan penanganan on-site teknisi darurat maksimal 2-4 jam untuk wilayah operasional utama."
+    question: "Apa saja pilihan segmen paket internet yang tersedia di PT. Kreatif Global Solusindo?",
+    answer: "Kami menyediakan 3 Segmen Layanan Internet: (1) Internet Dedicated 10 Mbps untuk Kebutuhan UMKM (mulai Rp 3.500.000/bulan), Kebutuhan Sekolah (mulai Rp 1.750.000/bulan), dan Kebutuhan Corporate (mulai Rp 1.750.000/bulan); (2) Internet Bisnis mulai 10 Mbps (Rp 407.000/bulan) hingga 200 Mbps (Rp 1.560.000/bulan); serta (3) Home Internet mulai 10 Mbps (Rp 252.000/bulan, Optimal 5 Perangkat) hingga 200 Mbps (Rp 1.100.000/bulan, Optimal 20 Perangkat)."
   },
   {
     id: "faq-6",
     category: "Kontrak & Legalitas",
     question: "Apakah PT. KGS melayani tender pengadaan resmi pemerintah dan BUMN?",
-    answer: "Ya, kami memiliki kelengkapan legalitas dan perizinan usaha yang lengkap (NIB, SIUP, NPWP, Pengusaha Kena Pajak / PKP, Akta Perusahaan, Surat Izin Kominfo) dan telah berpengalaman mengerjakan pengadaan untuk BUMN ternama seperti PT Semen Tonasa, PT Pelindo, PT Pupuk Sriwidjaja (Pusri), perbankan nasional, serta rumah sakit dan instansi pemerintah daerah."
+    answer: "Ya, kami memiliki kelengkapan legalitas dan perizinan usaha yang lengkap (NIB 9120202100598, Izin Kominfo RI, SKLO, SIUP, NPWP, PKP) dan telah berpengalaman sejak 1997 mengerjakan pengadaan untuk konsumen perorangan, badan usaha, instansi pemerintah maupun BUMN."
   },
   {
     id: "faq-7",
@@ -1708,20 +2069,221 @@ export interface NavigationMenuItem {
 }
 
 export const INITIAL_NAVIGATION_MENUS: NavigationMenuItem[] = [
-  // Navigasi Header (Atas)
+  // Navigasi Header (Atas) - Sesuai Urutan Resmi 7 Menu Utama
   { id: 1, title: 'Beranda', url: 'index.php', location: 'header', sortOrder: 1, target: '_self', isActive: true },
-  { id: 2, title: 'Tentang Kami', url: 'tentang.php', location: 'header', sortOrder: 2, target: '_self', isActive: true },
-  { id: 3, title: 'Layanan', url: 'layanan.php', location: 'header', sortOrder: 3, target: '_self', isActive: true },
-  { id: 4, title: 'Harga', url: 'harga.php', location: 'header', sortOrder: 4, target: '_self', isActive: true },
-  { id: 5, title: 'FAQ', url: 'faq.php', location: 'header', sortOrder: 5, target: '_self', isActive: true },
-  { id: 6, title: 'Portofolio', url: 'portofolio.php', location: 'header', sortOrder: 6, target: '_self', isActive: true },
-  { id: 7, title: 'Kontak', url: 'kontak.php', location: 'header', sortOrder: 7, target: '_self', isActive: true },
+  { id: 2, title: 'Produk & Layanan', url: 'layanan.php', location: 'header', sortOrder: 2, target: '_self', isActive: true },
+  { id: 3, title: 'Promo', url: 'promo.php', location: 'header', sortOrder: 3, target: '_self', isActive: true },
+  { id: 4, title: 'Client / Pelanggan', url: 'klien.php', location: 'header', sortOrder: 4, target: '_self', isActive: true },
+  { id: 5, title: 'Kemitraan', url: 'kemitraan.php', location: 'header', sortOrder: 5, target: '_self', isActive: true },
+  { id: 6, title: 'Testimoni', url: 'testimoni.php', location: 'header', sortOrder: 6, target: '_self', isActive: true },
+  { id: 7, title: 'Hubungi Kami', url: 'kontak.php', location: 'header', sortOrder: 7, target: '_self', isActive: true },
   // Navigasi Footer (Bawah)
   { id: 8, title: 'Profil Perusahaan', url: 'page.php?slug=profil-perusahaan', location: 'footer', sortOrder: 1, target: '_self', isActive: true },
   { id: 9, title: 'Visi & Misi', url: 'page.php?slug=visi-misi-budaya', location: 'footer', sortOrder: 2, target: '_self', isActive: true },
-  { id: 10, title: 'Katalog Layanan', url: 'layanan.php', location: 'footer', sortOrder: 3, target: '_self', isActive: true },
+  { id: 10, title: 'Produk & Layanan', url: 'layanan.php', location: 'footer', sortOrder: 3, target: '_self', isActive: true },
   { id: 11, title: 'Artikel Edukasi', url: 'blog.php', location: 'footer', sortOrder: 4, target: '_self', isActive: true },
   { id: 12, title: 'Kebijakan Privasi', url: 'kebijakan-privasi.php', location: 'footer', sortOrder: 5, target: '_self', isActive: true }
+];
+
+export interface PromoItem {
+  id: string;
+  title: string;
+  badge: string;
+  category: 'Internet ISP' | 'CCTV & Security' | 'Networking & Fiber' | 'PBX & Tower';
+  originalPrice: string;
+  promoPrice: string;
+  discountLabel: string;
+  validUntil: string;
+  description: string;
+  features: string[];
+  ctaText: string;
+  isHighlight: boolean;
+  isActive: boolean;
+}
+
+export const INITIAL_PROMOS: PromoItem[] = [
+  {
+    id: 'promo-1',
+    title: 'Promo Instalasi Baru KGSNet Home & Business Broadband',
+    badge: 'Terpopuler • Gratis Instalasi',
+    category: 'Internet ISP',
+    originalPrice: 'Biaya Instalasi Rp 500.000',
+    promoPrice: 'Mulai Rp 252.000 / Bulan',
+    discountLabel: 'FREE INSTALASI 100%',
+    validUntil: 'Berlaku Selama Kuota Area Tersedia',
+    description:
+      'Nikmati koneksi internet fiber optik super cepat dan stabil dari KGSNet (ISP Resmi Kominfo RI & Anggota APJII) untuk rumah maupun tempat usaha tanpa biaya pasang baru.',
+    features: [
+      'Gratis biaya penarikan kabel Fiber Optik & registrasi',
+      'Dipinjamkan unit ONT / Router Wi-Fi Dual-Band selama berlangganan',
+      'Pilihan kecepatan 10 Mbps, 20 Mbps, 30 Mbps, 50 Mbps, 100 Mbps s/d 200 Mbps',
+      'Koneksi Unlimited tanpa batasan kuota (Tanpa FUP)',
+      'Dukungan teknis NOC & Tim Lapangan Palembang 24/7'
+    ],
+    ctaText: 'Klaim Promo Internet KGSNet',
+    isHighlight: true,
+    isActive: true
+  },
+  {
+    id: 'promo-2',
+    title: 'Promo Internet Dedicated 1:1 Corporate, Sekolah & Instansi',
+    badge: 'Khusus B2B & Pendidikan',
+    category: 'Internet ISP',
+    originalPrice: 'Mulai Rp 2.200.000 / Bulan',
+    promoPrice: 'Mulai Rp 1.750.000 / Bulan',
+    discountLabel: 'HEMAT 20% + FREE IP PUBLIC',
+    validUntil: 'Program Kemitraan B2B & Pendidikan',
+    description:
+      'Paket khusus Internet Dedicated rasio bandwidth simetris 1:1 (Upload = Download) dengan garansi SLA 99.5% untuk operasional kantor, rumah sakit, perbankan, kampus, dan sekolah.',
+    features: [
+      'Bandwidth Dedicated 1:1 murni ke upstream dual-homing',
+      'Gratis 1 IP Public Static untuk kebutuhan Server / VPN / CCTV',
+      'Akses grafik pemantauan trafik real-time (MRTG) 24 jam',
+      'Prioritas penanganan gangguan dengan engineer on-site',
+      'Gratis konsultasi & audit manajemen bandwidth MikroTik'
+    ],
+    ctaText: 'Ajukan Penawaran Dedicated',
+    isHighlight: true,
+    isActive: true
+  },
+  {
+    id: 'promo-3',
+    title: 'Paket Bundling Smart CCTV IP Camera + Akses Cloud Mobile',
+    badge: 'Security Solution',
+    category: 'CCTV & Security',
+    originalPrice: 'Harga Normal Paket + Jasa',
+    promoPrice: 'Diskon Jasa Instalasi 25%',
+    discountLabel: 'FREE SETTING CLOUD & SURVEY',
+    validUntil: 'Berlaku untuk Pemasangan Kantor, Gudang & Rumah',
+    description:
+      'Solusi pengawasan keamanan 24 jam menggunakan kamera IP / HDTVI Night Vision beresolusi tinggi lengkap dengan perekam NVR/DVR dan konfigurasi pemantauan langsung dari HP.',
+    features: [
+      'Gratis survei titik buta (blind-spot) lokasi area Palembang',
+      'Kamera Outdoor & Indoor tahan cuaca dengan fitur ColorVu / Infrared',
+      'Gratis setting aplikasi mobile monitoring di Android, iPhone & PC',
+      'Instalasi rapi menggunakan pipa pelindung conduit standar industri',
+      'Garansi resmi perangkat & jaminan pemeliharaan pasca-instalasi'
+    ],
+    ctaText: 'Pesan Paket Promo CCTV',
+    isHighlight: false,
+    isActive: true
+  },
+  {
+    id: 'promo-4',
+    title: 'Paket Audit Fiber Optik, IP-PBX & Uji Grounding Penangkal Petir',
+    badge: 'System Integrator',
+    category: 'PBX & Tower',
+    originalPrice: 'Biaya Survei & Pengukuran Teknis',
+    promoPrice: 'Gratis Kunjungan Survei Awal',
+    discountLabel: 'FREE AUDIT & UJI < 2 OHM',
+    validUntil: 'Khusus Proyek Kantor, Pabrik & Perkebunan',
+    description:
+      'Layanan terpadu pengecekan kesehatan jaringan kabel serat optik (OTDR), sentral telepon PABX/IP-PBX Panasonic, fabrikasi Tower, serta pengujian tahanan pembumian penyalur petir.',
+    features: [
+      'Gratis konsultasi desain topologi jaringan & BoQ transparan',
+      'Pengukuran tahanan tanah menggunakan Digital Earth Tester (< 2 Ohm)',
+      'Pengecekan redaman sambungan core Fiber Optik dengan alat OTDR',
+      'Dukungan pengadaan resmi berfaktur pajak (PKP) untuk BUMN & Instansi',
+      'Ditangani langsung oleh teknisi bersertifikat dan berpengalaman sejak 1997'
+    ],
+    ctaText: 'Jadwalkan Survei Gratis',
+    isHighlight: false,
+    isActive: true
+  }
+];
+
+export interface TestimonialItem {
+  id: string;
+  clientName: string;
+  personName: string;
+  roleOrDepartment: string;
+  sector: 'BUMN & Korporasi' | 'Pemerintahan' | 'Perbankan & Medis' | 'Pendidikan & Retail';
+  serviceUsed: string;
+  quote: string;
+  rating: number;
+  projectYear: string;
+  isActive: boolean;
+}
+
+export const INITIAL_TESTIMONIALS: TestimonialItem[] = [
+  {
+    id: 'testi-1',
+    clientName: 'PT. Pupuk Sriwidjaja (PUSRI) Palembang',
+    personName: 'Divisi Teknologi Informasi & Telekomunikasi',
+    roleOrDepartment: 'Tim Infrastruktur Jaringan & Komunikasi',
+    sector: 'BUMN & Korporasi',
+    serviceUsed: 'Fiber Optik, Telekomunikasi & Infrastruktur Jaringan',
+    quote:
+      'PT. Kreatif Global Solusindo (Creative Com) selalu menunjukkan standar kerja teknis yang presisi, mulai dari penarikan dan terminasi jaringan serat optik hingga dukungan teknis di lapangan yang sangat responsif.',
+    rating: 5,
+    projectYear: 'Mitra Korporasi',
+    isActive: true
+  },
+  {
+    id: 'testi-2',
+    clientName: 'RSUP Dr. Mohammad Hoesin Palembang',
+    personName: 'Instalasi Sistem Informasi & Sarana Prasarana',
+    roleOrDepartment: 'Manajemen Operasional & Fasilitas Medis',
+    sector: 'Perbankan & Medis',
+    serviceUsed: 'PBX Communication System, CCTV & Jaringan Data',
+    quote:
+      'Keandalan komunikasi ekstensi PABX dan sistem keamanan CCTV di lingkungan rumah sakit sangat krusial bagi pelayanan pasien 24 jam. Tim teknisi PT. KGS bekerja rapi, cepat, dan solutif.',
+    rating: 5,
+    projectYear: 'Layanan Medis',
+    isActive: true
+  },
+  {
+    id: 'testi-3',
+    clientName: 'Bank Sumsel Babel',
+    personName: 'Bagian Umum & Infrastruktur TI',
+    roleOrDepartment: 'Pengelolaan Jaringan & Keamanan Kantor',
+    sector: 'Perbankan & Medis',
+    serviceUsed: 'Security System (CCTV, Access Door) & Konektivitas',
+    quote:
+      'Implementasi sistem keamanan terpadu Access Door, kamera pengawas CCTV, dan perangkat jaringan dari PT. KGS memberikan rasa aman dengan dukungan purna jual lokal di Palembang yang selalu siap sedia.',
+    rating: 5,
+    projectYear: 'Sektor Perbankan',
+    isActive: true
+  },
+  {
+    id: 'testi-4',
+    clientName: 'Instansi Pemerintah Daerah Provinsi Sumatera Selatan',
+    personName: 'Bidang Infrastruktur Teknologi Informasi & Komunikasi',
+    roleOrDepartment: 'Tim Pengelola Jaringan Pemerintahan',
+    sector: 'Pemerintahan',
+    serviceUsed: 'Internet Dedicated KGSNet, Wireless & Tower',
+    quote:
+      'Koneksi Internet Dedicated KGSNet serta pembangunan menara komunikasi dan jaringan wireless antar-gedung berjalan sangat stabil. Legalitas perusahaan yang lengkap juga memudahkan proses administrasi pengadaan.',
+    rating: 5,
+    projectYear: 'Sektor Pemerintahan',
+    isActive: true
+  },
+  {
+    id: 'testi-5',
+    clientName: 'Perusahaan Perkebunan & Pertambangan Sumatera Selatan',
+    personName: 'Departemen Engineering & Operasional Site',
+    roleOrDepartment: 'Koordinator Infrastruktur Lapangan',
+    sector: 'BUMN & Korporasi',
+    serviceUsed: 'Guy Wire Tower, Self Supporting Tower & Penangkal Petir',
+    quote:
+      'Pabrikasi menara komunikasi dan instalasi penangkal petir dengan hasil uji grounding di bawah 2 Ohm dari PT. KGS terbukti tangguh melindungi perangkat radio dan jaringan kami di area site terbuka.',
+    rating: 5,
+    projectYear: 'Site Industri & Kebun',
+    isActive: true
+  },
+  {
+    id: 'testi-6',
+    clientName: 'Lembaga Pendidikan & Kampus di Palembang',
+    personName: 'Pusat Sistem Informasi & Jaringan Kampus',
+    roleOrDepartment: 'Pengelola IT & Laboratorium Komputer',
+    sector: 'Pendidikan & Retail',
+    serviceUsed: 'Internet Dedicated Sekolah/Kampus & Manajemen Router MikroTik',
+    quote:
+      'Sejak beralih menggunakan layanan Internet Dedicated KGSNet dan optimasi jaringan Wi-Fi dari PT. KGS, kegiatan belajar mengajar digital dan sistem akademik online berjalan lancar tanpa kendala.',
+    rating: 5,
+    projectYear: 'Sektor Pendidikan',
+    isActive: true
+  }
 ];
 
 export type WebsiteThemePresetId =
@@ -1851,6 +2413,8 @@ export interface HeroSlideItem {
   imageUrl: string;
   sortOrder: number;
   isActive: boolean;
+  slug?: string;
+  imageCount?: number;
 }
 
 export type HeroSliderLayoutMode = 'side' | 'background' | 'both' | 'noc';
@@ -1872,31 +2436,92 @@ export const INITIAL_HERO_SLIDER_CONFIG: HeroSliderConfig = {
   showNocSummary: true,
   slides: [
     {
-      id: 'slide-1',
-      title: 'Backbone Fiber Optic & Data Center KGSNet',
-      subtitle: 'Koneksi Dedicated Internet B2B SLA 99.5% terhubung langsung ke BGP Peering Neucentrix.',
-      badgeText: 'ISP Resmi & Anggota APJII',
+      id: 'ss-cat-1',
+      title: 'Fiber Optik',
+      subtitle: 'Fiber Optik adalah saluran transmisi atau sejenis kabel yang terbuat dari kaca atau plastik yang sangat halus dan lebih kecil dari...',
+      badgeText: 'Slide Show Infrastruktur · 6 Gambar',
       imageUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80',
       sortOrder: 1,
-      isActive: true
+      isActive: true,
+      slug: 'fiber-optik',
+      imageCount: 6
     },
     {
-      id: 'slide-2',
-      title: 'Pabrikasi & Instalasi Tower Guywire Mandiri',
-      subtitle: 'Workshop internal untuk pembangunan tower komunikasi radio & wireless PTP perkebunan dan tambang.',
-      badgeText: 'Infrastruktur Telekomunikasi',
-      imageUrl: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&q=80',
+      id: 'ss-cat-2',
+      title: 'Guy Wire Tower',
+      subtitle: 'Guy Wire Tower (GWT), adalah jenis menara yang ditopang dengan tali-tali baja (wire) sebagai skur yang diangkurkan pada landasan tanah...',
+      badgeText: 'Slide Show Infrastruktur · 4 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186f5f7?auto=format&fit=crop&w=1200&q=80',
       sortOrder: 2,
-      isActive: true
+      isActive: true,
+      slug: 'guy-wire-tower',
+      imageCount: 4
     },
     {
-      id: 'slide-3',
-      title: 'Sistem CCTV AI, Access Control & Proteksi Petir < 2 Ohm',
-      subtitle: 'Keamanan perimeter industri 24/7 dengan uji grounding bersertifikasi Earth Tester.',
-      badgeText: 'Security & Grounding System',
-      imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80',
+      id: 'ss-cat-3',
+      title: 'SELF SUPPORTING TOWER MONOPOLE',
+      subtitle: 'Tower Monopoles adalah jenis menara telekomunikasi yang terdiri dari tiang tunggal yang menawarkan integritas struktural untuk berdiri secara independen sementara...',
+      badgeText: 'Slide Show Infrastruktur · 4 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80',
       sortOrder: 3,
-      isActive: true
+      isActive: true,
+      slug: 'self-supporting-tower-monopole',
+      imageCount: 4
+    },
+    {
+      id: 'ss-cat-4',
+      title: 'LIGHTNING PROTECTOR',
+      subtitle: 'Penyalur petir adalah rangkaian jalur yang difungsikan sebagai jalan bagi petir menuju ke permukaan bumi, tanpa merusak benda-benda yang dilewatinya. Ada...',
+      badgeText: 'Slide Show Infrastruktur · 5 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+      sortOrder: 4,
+      isActive: true,
+      slug: 'lightning-protector',
+      imageCount: 5
+    },
+    {
+      id: 'ss-cat-5',
+      title: 'IP – PBX',
+      subtitle: 'IP PBX atau Internet Protocol Private Branch Exchange adalah PABX yang menggunakan teknologi IP. IP PBX adalah perangkat switching komunikasi telepon dan data berbasis...',
+      badgeText: 'Slide Show Infrastruktur · 5 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80',
+      sortOrder: 5,
+      isActive: true,
+      slug: 'ip-pbx',
+      imageCount: 5
+    },
+    {
+      id: 'ss-cat-6',
+      title: 'Wireless',
+      subtitle: 'Jaringan wireless adalah jaringan dengan menggunakan teknologi nirkabel, dalam hal ini adalah hubungan telekomunikasi suara maupun data dengan menggunakan gelombang elektromagnetik...',
+      badgeText: 'Slide Show Infrastruktur · 5 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+      sortOrder: 6,
+      isActive: true,
+      slug: 'wireless',
+      imageCount: 5
+    },
+    {
+      id: 'ss-cat-7',
+      title: 'Access Door',
+      subtitle: 'Access Control merupakan sebuah alat / sistem yang digunakan sebagai kunci pintu electronic (Access Door) dengan menggunakan akses Kartu ID...',
+      badgeText: 'Slide Show Infrastruktur · 6 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80',
+      sortOrder: 7,
+      isActive: true,
+      slug: 'access-door',
+      imageCount: 6
+    },
+    {
+      id: 'ss-cat-8',
+      title: 'CCTV',
+      subtitle: 'CCTV adalah singkatan untuk closed circuit television alias televisi sirkuit tertutup. Ini adalah sistem di mana sirkuitnya tertutup dan semua elemennya terhubung. Hal...',
+      badgeText: 'Slide Show Infrastruktur · 5 Gambar',
+      imageUrl: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1200&q=80',
+      sortOrder: 8,
+      isActive: true,
+      slug: 'cctv',
+      imageCount: 5
     }
   ]
 };
@@ -1948,6 +2573,508 @@ export const INITIAL_TIMELINE_MILESTONES: TimelineMilestoneItem[] = [
     isHighlighted: true
   }
 ];
+
+export const WHY_CHOOSE_US_CONTENT = {
+  title: 'Why Choose Us?',
+  paragraph1:
+    'Perkembangan dunia IT yang begitu cepat, memberikan efek yang tidak kecil terhadap segala sudut kehidupan. Era internet pun datang merambah seluruh ruang lingkup aktivitas kita. Laju perkembangan IT berimbas pada semakin meningkatnya kebutuhan akan penerapan IT dalam dunia bisnis. Persaingan bisnis yang semakin keras, menuntut untuk bisa berinovasi dan menerapkan tool-tool pendukung untuk selalu bisa bertahan atau minimal tidak tertinggal jauh dan selalu terhubung. Salah satu tool pendukung itu adalah pemberdayaan teknologi informasi (TI).Untuk memenuhi kebutuhan itu, Kami hadir membawa solusi dalam bidang IT.',
+  paragraph2:
+    'Creative Com, merupakan perusahaan yang bergerak di bidang IT, dengan menyediakan berbagai produk untuk mendukung infrastruktur anda dalam berbagai bidang khususnya teknologi informasi. Prinsip kami adalah memberikan solusi terbaik dengan produk yang berkualitas. Kepuasan pelanggan merupakan tujuan utama kami dalam memberikan pelayanan.',
+  paragraphs: [
+    'Perkembangan dunia IT yang begitu cepat, memberikan efek yang tidak kecil terhadap segala sudut kehidupan. Era internet pun datang merambah seluruh ruang lingkup aktivitas kita. Laju perkembangan IT berimbas pada semakin meningkatnya kebutuhan akan penerapan IT dalam dunia bisnis. Persaingan bisnis yang semakin keras, menuntut untuk bisa berinovasi dan menerapkan tool-tool pendukung untuk selalu bisa bertahan atau minimal tidak tertinggal jauh dan selalu terhubung. Salah satu tool pendukung itu adalah pemberdayaan teknologi informasi (TI).Untuk memenuhi kebutuhan itu, Kami hadir membawa solusi dalam bidang IT.',
+    'Creative Com, merupakan perusahaan yang bergerak di bidang IT, dengan menyediakan berbagai produk untuk mendukung infrastruktur anda dalam berbagai bidang khususnya teknologi informasi. Prinsip kami adalah memberikan solusi terbaik dengan produk yang berkualitas. Kepuasan pelanggan merupakan tujuan utama kami dalam memberikan pelayanan.'
+  ]
+};
+
+export interface SlideshowImageItem {
+  id: string;
+  imagePath: string;
+  caption: string;
+  altText: string;
+  sortOrder: number;
+  isPrimary?: boolean;
+  createdAt?: string;
+}
+
+export interface SlideshowCategoryItem {
+  id: string;
+  title: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  coverImage: string;
+  sortOrder: number;
+  isActive: boolean;
+  images: SlideshowImageItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const INITIAL_SLIDESHOW_CATEGORIES: SlideshowCategoryItem[] = [
+  {
+    id: 'ss-cat-1',
+    title: 'Fiber Optik',
+    slug: 'fiber-optik',
+    shortDescription: 'Fiber Optik adalah saluran transmisi atau sejenis kabel yang terbuat dari kaca atau plastik yang sangat halus dan lebih kecil dari...',
+    description: `Fiber Optik adalah saluran transmisi atau sejenis kabel yang terbuat dari kaca atau plastik yang sangat halus dan lebih kecil dari sehelai rambut, dan dapat digunakan untuk mentransmisikan sinyal cahaya dari suatu tempat ke tempat lain. Sumber cahaya yang digunakan biasanya adalah dari sinar laser atau LED.
+
+Kabel ini berdiameter lebih kurang 120 mikrometer. Cahaya yang ada di dalam serat optik tidak keluar karena indeks bias dari kaca lebih besar daripada indeks bias dari udara, karena laser mempunyai spektrum yang sangat sempit. Kecepatan transmisi fiber optik sangat tinggi sehingga sangat bagus digunakan sebagai saluran komunikasi.
+
+Perkembangan teknologi fiber optik saat ini, telah dapat menghasilkan pelemahan (attenuation) kurang dari 20 decibels (dB)/km. Dengan lebar jalur (bandwidth) yang besar, maka mampu dalam mentransmisikan data menjadi lebih banyak dan cepat dibandingan dengan penggunaan kabel konvensional. Dengan demikian fiber optik sangat cocok digunakan terutama dalam aplikasi sistem telekomunikasi.
+
+Sekitar 20 tahun yang lalu, kabel fiber optik telah memngambil alih dan mengubah wajah teknologi industri telepon jarak jauh maupun industri automasi dengan pengontrolan jarak jauh. Serat optik juga memberikan peranan besar membuat Internet dapat digunakan di seluruh dunia. Pada tahun 1997 fiber optik menghubungkan seluruh dunia, Fiber-Optic Link Around the Globe (FLAG) menjadi jaringan kabel terpanjang di seluruh dunia yang menyediakan infrastruktur untuk generasi internet terbaru.
+
+Kelebihan Fiber Optik:
+- Bandwidth sangat besar dengan kecepatan transmisi mencapai gigabit-per detik dan menghantarkan informasi jarak jauh tanpa pengulangan
+- Biaya pemasangan dan pengoperasian yang rendah serta tingkat keamanan yang lebih tinggi
+- Ukuran kecil dan ringan, sehingga hemat pemakaian ruang
+- Kebal terhadap gangguan elektromagnetik dan gangguan gelombang radio
+- Tidak ada tenaga listrik dan percikan api
+- Tidak berkarat`,
+    coverImage: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 1,
+    isActive: true,
+    createdAt: '2026-10-25 08:00',
+    updatedAt: '2026-10-25 08:00',
+    images: [
+      {
+        id: 'ss-img-201',
+        imagePath: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Kabel fiber optik berinti serat kaca murni untuk transmisi data cahaya berkecepatan tinggi',
+        altText: 'Kabel fiber optik',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-202',
+        imagePath: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Kabel dan patchcord fiber optik LC/SC/FC Singlemode & Multimode di rak server',
+        altText: 'Kabel dan patchcord fiber optik',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-203',
+        imagePath: 'https://images.unsplash.com/photo-1597852074816-d933c7d2b988?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Optical Distribution Frame (ODF) dan Optical Distribution Box (ODB/OTB) terintegrasi',
+        altText: 'ODF dan optical distribution box',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-204',
+        imagePath: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Proses fusion splicing dan terminasi presisi inti serat optik oleh teknisi KGS',
+        altText: 'Proses splicing dan terminasi',
+        sortOrder: 4
+      },
+      {
+        id: 'ss-img-205',
+        imagePath: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Perangkat pengujian redaman saluran fiber optik menggunakan OTDR & Optical Power Meter',
+        altText: 'Perangkat pengujian fiber optik',
+        sortOrder: 5
+      },
+      {
+        id: 'ss-img-206',
+        imagePath: 'https://images.unsplash.com/photo-1520869562399-e772f042f422?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Instalasi penarikan jaringan backbone fiber optik udara dan bawah tanah di lapangan',
+        altText: 'Instalasi jaringan fiber optik di lapangan',
+        sortOrder: 6
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-2',
+    title: 'Guy Wire Tower',
+    slug: 'guy-wire-tower',
+    shortDescription: 'Guy Wire Tower (GWT), adalah jenis menara yang ditopang dengan tali-tali baja (wire) sebagai skur yang diangkurkan pada landasan tanah...',
+    description: `Guy Wire Tower (GWT), adalah jenis menara yang ditopang dengan tali-tali baja (wire) sebagai skur yang diangkurkan pada landasan tanah (Guywire), dimana skur ini merupakan tumpuan utama agar tower tersebut dapat berdiri.
+
+Menara ini juga disusun atas pola batang besi sebagaimana dengan self-supporting tower, akan tetapi menara jenis guyed wire tower memiliki jenis dimensi batang yang lebih kecil dari pada jenis menara self-supporting tower.
+
+Namun demikian jenis guyed wire tower tidak kalah kuat dari segi kekuatan menopang beban, jenis menara ini mampu menerima beban antena dan perangkat lainnya yang terpasang pada tower.
+
+Karena sifatnya yang ditopang oleh kawat baja (wire) dan memiliki dimensi batang yang lebih kecil, menara jenis ini memiliki keuntungan antara lain dari segi biaya dan ruang, menara ini jauh lebih hemat biaya pembuatan dan membutuhkan ruang yang tidak terlalu luas dibanding dengan jenis self-supporting tower.`,
+    coverImage: 'https://images.unsplash.com/photo-1541888946425-d0fbb186f5f7?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 2,
+    isActive: true,
+    createdAt: '2026-10-25 08:05',
+    updatedAt: '2026-10-25 08:05',
+    images: [
+      {
+        id: 'ss-img-301',
+        imagePath: 'https://images.unsplash.com/photo-1541888946425-d0fbb186f5f7?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Tampilan penuh Guy Wire Tower vertikal dengan rentangan kawat seling penopang',
+        altText: 'Tampilan penuh guy wire tower',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-302',
+        imagePath: 'https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Detail tali penyangga baja galvanis (guy wire), spandscrew, dan titik angkur fondasi tanah',
+        altText: 'Detail tali penyangga dan titik angkur',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-303',
+        imagePath: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Struktur rangka modul segitiga hasil fabrikasi presisi di workshop internal PT. KGS',
+        altText: 'Struktur rangka menara',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-304',
+        imagePath: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80',
+        caption: 'Contoh instalasi menara telekomunikasi Guy Wire Tower untuk antena radio & wireless ISP di area site',
+        altText: 'Contoh instalasi menara telekomunikasi',
+        sortOrder: 4
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-3',
+    title: 'SELF SUPPORTING TOWER MONOPOLE',
+    slug: 'self-supporting-tower-monopole',
+    shortDescription: 'Tower Monopoles adalah jenis menara telekomunikasi yang terdiri dari tiang tunggal yang menawarkan integritas struktural untuk berdiri secara independen sementara...',
+    description: `Tower Monopoles adalah jenis menara telekomunikasi yang terdiri dari tiang tunggal yang menawarkan integritas struktural untuk berdiri secara independen sementara menolak berbagai kondisi lingkungan. Monopole menara tidak memerlukan bracing dari kabel tegangan tinggi atau bingkai logam, yang menawarkan banyak manfaat dan keuntungan.`,
+    coverImage: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80',
+    sortOrder: 3,
+    isActive: true,
+    createdAt: '2026-10-25 08:10',
+    updatedAt: '2026-10-25 08:10',
+    images: [
+      {
+        id: 'ss-img-101',
+        imagePath: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80',
+        caption: 'Gambar utama menara monopole telekomunikasi berstruktur tiang tunggal mandiri',
+        altText: 'Gambar utama menara monopole',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-102',
+        imagePath: 'https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Detail struktur baja galvanis dan sambungan flange baut kekuatan tinggi pada menara monopole',
+        altText: 'Detail struktur dan sambungan menara',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-103',
+        imagePath: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Contoh instalasi fondasi beton bertulang dan ereksi menara monopole di lapangan',
+        altText: 'Contoh instalasi di lapangan',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-104',
+        imagePath: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Contoh penerapan menara monopole pada infrastruktur telekomunikasi dan antena wireless perkotaan',
+        altText: 'Contoh penerapan pada infrastruktur telekomunikasi',
+        sortOrder: 4
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-4',
+    title: 'LIGHTNING PROTECTOR',
+    slug: 'lightning-protector',
+    shortDescription: 'Penyalur petir adalah rangkaian jalur yang difungsikan sebagai jalan bagi petir menuju ke permukaan bumi, tanpa merusak benda-benda yang dilewatinya. Ada...',
+    description: `Penyalur petir adalah rangkaian jalur yang difungsikan sebagai jalan bagi petir menuju ke permukaan bumi, tanpa merusak benda-benda yang dilewatinya. Ada 3 bagian utama pada penyalur petir:
+
+Batang penyalur petir
+Batang penyalur petir berupa batang tembaga yang ujungnya runcing. Buat batang tembaga yang runcing ini karena muatan listrik mempunyai sifat mudah berkumpul dan lepas pada ujung logam yang runcing. Dengan demikian dapat memperlancar proses tarik menarik dengan muatan listrik yang ada di awan. Batang runcing ini dipasang pada bagian puncak suatu bangunan/gedung.
+
+Kabel konduktor
+Kabel konduktor terbuat dari jalinan kawat tembaga. Diameter jalinan kabel konduktor sekitar 1 cm hingga 2 cm. Kabel konduktor berfungsi meneruskan aliran muatan listrik dari batang muatan listrik ke tanah. Kabel konduktor tersebut dipasang pada dinding di bagian luar bangunan/gedung.
+
+Tempat pembumian
+Tempat pembumian (grounding) berfungsi mengalirkan muatan listrik dari kabel konduktor ke batang pembumian (ground rod) yang tertanam di tanah. Batang pembumian terbuat dari bahan tembaga berlapis baja, dengan diameter 1,5 cm dan panjang sekitar 1,8 – 3 m.`,
+    coverImage: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 4,
+    isActive: true,
+    createdAt: '2026-10-25 08:15',
+    updatedAt: '2026-10-25 08:15',
+    images: [
+      {
+        id: 'ss-img-401',
+        imagePath: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Batang penangkap petir (Air Terminal) di puncak menara/gedung untuk menerima sambaran petir',
+        altText: 'Batang penangkap petir',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-402',
+        imagePath: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Kabel konduktor jalinan kawat tembaga (BC / NYY) penyalur muatan listrik menuju pembumian',
+        altText: 'Kabel konduktor',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-403',
+        imagePath: 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Sistem grounding (pembumian) batang tembaga beserta pengujian Earth Resistance Tester < 2 Ohm',
+        altText: 'Sistem grounding',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-404',
+        imagePath: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Instalasi sistem proteksi petir eksternal pada puncak gedung bertingkat dan kawasan industri',
+        altText: 'Instalasi proteksi petir di gedung',
+        sortOrder: 4
+      },
+      {
+        id: 'ss-img-405',
+        imagePath: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80',
+        caption: 'Perangkat proteksi petir dan Surge Arrester panel MDP untuk fasilitas telekomunikasi & pembangkit',
+        altText: 'Perangkat proteksi petir untuk fasilitas telekomunikasi',
+        sortOrder: 5
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-5',
+    title: 'IP – PBX',
+    slug: 'ip-pbx',
+    shortDescription: 'IP PBX atau Internet Protocol Private Branch Exchange adalah PABX yang menggunakan teknologi IP. IP PBX adalah perangkat switching komunikasi telepon dan data berbasis...',
+    description: `IP PBX atau Internet Protocol Private Branch Exchange adalah PABX yang menggunakan teknologi IP. IP PBX adalah perangkat switching komunikasi telepon dan data berbasis teknologi Internet Protocol (IP) yang mengendalikan ekstension telepon analog (TDM) maupun ekstension IP Phone.
+
+Fungsi-fungsi yang dapat dilakukan antara lain penyambungan, pengendalian, dan pemutusan hubungan telepon; translasi protokol komunikasi; serta pengaturan jalur dan media komunikasi (suara, data, dan video).
+
+Apabila di lingkungan anda telah terdapat perangkat router, maka perangkat IP PBX dapat berbagi jaringan dengan jaringan komputer yang sudah ada. Artinya tidak diperlukan jaringan khusus untuk mentransmisikan sinyal suara maupun video, cukup menumpangkannya pada jaringan data yang ada.
+
+Sebuah IP PBX dapat mengubah panggilan telepon melalui jaringan data dengan menggunakan teknologi VoIP (Voice over Internet Protocol), dan mengkonversi panggilan VoIP ke jaringan telepon lokal (PSTN). Dengan demikian pengguna dalam satu perusahaan dapat berkomunikasi secara internal melalui jaringan IP dan juga tetap terhubung dengan jaringan telepon publik eksternal, baik melalui saluran analog konvensional maupun ISDN.
+
+Dengan hadirnya IP PBX, maka jaringan data dan jaringan suara dapat digabungkan menjadi satu infrastruktur terpadu yang lebih efisien dan fleksibel untuk pengembangan di masa depan.`,
+    coverImage: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 5,
+    isActive: true,
+    createdAt: '2026-10-25 08:20',
+    updatedAt: '2026-10-25 08:20',
+    images: [
+      {
+        id: 'ss-img-501',
+        imagePath: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Perangkat sentral komunikasi IP-PBX enterprise untuk manajemen ratusan ekstensi telepon',
+        altText: 'Perangkat IP-PBX',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-502',
+        imagePath: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Pesawat telepon meja IP Phone HD Voice dengan layar status ekstensi dan PoE',
+        altText: 'IP Phone',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-503',
+        imagePath: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Server komunikasi SIP Trunking dan gateway PSTN/VoIP pada rak komunikasi perusahaan',
+        altText: 'Server komunikasi',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-504',
+        imagePath: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Topologi dan arsitektur jaringan komunikasi suara & data perusahaan lintas kantor cabang',
+        altText: 'Diagram jaringan komunikasi perusahaan',
+        sortOrder: 4
+      },
+      {
+        id: 'ss-img-505',
+        imagePath: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Contoh instalasi sistem telepon kantor, resepsionis, dan ruang operasional BUMN/Rumah Sakit',
+        altText: 'Contoh instalasi sistem telepon kantor',
+        sortOrder: 5
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-6',
+    title: 'Wireless',
+    slug: 'wireless',
+    shortDescription: 'Jaringan wireless adalah jaringan dengan menggunakan teknologi nirkabel, dalam hal ini adalah hubungan telekomunikasi suara maupun data dengan menggunakan gelombang elektromagnetik...',
+    description: `Jaringan wireless adalah jaringan dengan menggunakan teknologi nirkabel, dalam hal ini adalah hubungan telekomunikasi suara maupun data dengan menggunakan gelombang elektromagnetik tanpa menggunakan kabel. Jaringan nirkabel ini sering dipakai untuk jaringan komputer baik pada jarak yang dekat (beberapa meter) maupun pada jarak jauh (Point-to-Point / Point-to-Multipoint antar site maupun satelit).
+
+Jenis jaringan yang populer dalam kategori jaringan nirkabel ini meliputi: Jaringan kawasan lokal nirkabel (Wireless LAN / Wi-Fi pada frekuensi 2.4 GHz dan 5 GHz), Radio Microwave Point-to-Point, dan WiMAX.
+
+Kelebihan:
+- Mobilitas Tinggi: Pengguna dapat mengakses jaringan dan informasi dari mana saja selama masih berada dalam jangkauan sinyal Access Point
+- Instalasi Mudah dan Cepat: Pembangunan jaringan yang cepat tanpa penarikan kabel rumit ke setiap meja kerja
+- Fleksibilitas Tempat: Mudah dan murah untuk direlokasi serta ideal untuk area yang sulit dijangkau kabel
+- Pengurangan Biaya Pemeliharaan: Biaya pemeliharaan jalur infrastruktur yang lebih efisien
+- Kemudahan Ekspansi (Scalability): Mudah untuk dikembangkan seiring bertambahnya perangkat pengguna`,
+    coverImage: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 6,
+    isActive: true,
+    createdAt: '2026-10-25 08:25',
+    updatedAt: '2026-10-25 08:25',
+    images: [
+      {
+        id: 'ss-img-601',
+        imagePath: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Access Point Wi-Fi Enterprise dual-band untuk cakupan jaringan lokal nirkabel berkapasitas tinggi',
+        altText: 'Access point Wi-Fi',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-602',
+        imagePath: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Perangkat radio wireless outdoor tahan cuaca untuk link Point-to-Point & Point-to-Multipoint',
+        altText: 'Perangkat wireless outdoor',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-603',
+        imagePath: 'https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&w=1200&h=675&q=80',
+        caption: 'Antena dish radio komunikasi gelombang mikro pada menara transmisi jarak jauh',
+        altText: 'Antena radio komunikasi',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-604',
+        imagePath: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Instalasi jaringan Wireless LAN (WLAN) terpusat di lingkungan gedung perkantoran & kampus',
+        altText: 'Instalasi jaringan wireless di kantor',
+        sortOrder: 4
+      },
+      {
+        id: 'ss-img-605',
+        imagePath: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Infrastruktur konektivitas nirkabel antargedung dan interkoneksi site perkebunan/tambang',
+        altText: 'Infrastruktur konektivitas nirkabel antargedung',
+        sortOrder: 5
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-7',
+    title: 'Access Door',
+    slug: 'access-door',
+    shortDescription: 'Access Control merupakan sebuah alat / sistem yang digunakan sebagai kunci pintu electronic (Access Door) dengan menggunakan akses Kartu ID...',
+    description: `Access Control merupakan sebuah alat / sistem yang digunakan sebagai kunci pintu electronic (Access Door) dengan menggunakan akses Kartu ID (RFID Proximity / Mifare), kode PIN, maupun pemindaian biometrik Sidik Jari (Fingerprint) dan Pengenalan Wajah (Face Recognition) untuk membuka dan menutup pintu secara otomatis.
+
+Door Access Control biasanya dipasang pada ruangan atau area strategis yang membutuhkan pengamanan khusus untuk membatasi hak akses keluar-masuk personel, seperti ruang Server / Data Center, ruang Direksi, Gudang, dan Laboratorium. Sehingga hanya personel yang telah terdaftar di dalam sistem yang memiliki otorisasi untuk membuka pintu tersebut.
+
+Sistem ini bekerja menggunakan pengunci elektromagnetik seperti Magnetic Lock (Maglock) atau Drop Bolt yang dikontrol oleh unit Access Controller serta dapat diintegrasikan dengan pencatatan waktu kehadiran (Time Attendance) dan tombol darurat (Emergency Breakglass).`,
+    coverImage: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 7,
+    isActive: true,
+    createdAt: '2026-10-25 08:30',
+    updatedAt: '2026-10-25 08:30',
+    images: [
+      {
+        id: 'ss-img-701',
+        imagePath: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Mesin reader akses kartu pintar RFID dan keypad PIN untuk otorisasi pintu ruang terbatas',
+        altText: 'Mesin akses kartu RFID',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-702',
+        imagePath: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Perangkat pemindai biometrik Fingerprint Access Control terintegrasi log absensi kehadiran',
+        altText: 'Fingerprint access control',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-703',
+        imagePath: 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Sistem pengunci pintu elektromagnetik (Magnetic Lock / Drop Bolt) dan tombol Exit Push Button',
+        altText: 'Electronic door lock',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-704',
+        imagePath: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Terminal Face Recognition (pengenalan wajah) tanpa sentuh dengan layar verifikasi cepat',
+        altText: 'Face recognition terminal',
+        sortOrder: 4
+      },
+      {
+        id: 'ss-img-705',
+        imagePath: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Instalasi perangkat Access Door pada pintu kaca ruang server dan kantor perbankan',
+        altText: 'Instalasi access door di kantor',
+        sortOrder: 5
+      },
+      {
+        id: 'ss-img-706',
+        imagePath: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Sistem perangkat lunak pengelolaan hak akses pintu dan pemantauan log keluar-masuk terpusat',
+        altText: 'Sistem pengelolaan akses terpusat',
+        sortOrder: 6
+      }
+    ]
+  },
+  {
+    id: 'ss-cat-8',
+    title: 'CCTV',
+    slug: 'cctv',
+    shortDescription: 'CCTV adalah singkatan untuk closed circuit television alias televisi sirkuit tertutup. Ini adalah sistem di mana sirkuitnya tertutup dan semua elemennya terhubung. Hal...',
+    description: `CCTV adalah singkatan untuk closed circuit television alias televisi sirkuit tertutup. Ini adalah sistem di mana sirkuitnya tertutup dan semua elemennya terhubung. Hal ini berbeda dengan televisi siaran biasa, di mana sinyal tidak ditransmisikan secara bebas ke publik, melainkan dikirimkan secara khusus melalui kabel koaksial, jaringan serat optik, atau jaringan IP (Nirkabel/LAN) menuju monitor dan alat perekam (DVR / NVR) tertentu.
+
+Sistem kamera pengawas CCTV digunakan secara luas untuk meningkatkan pengamanan aset gedung perkantoran, pabrik industri, pergudangan, pelabuhan, perbankan, rumah sakit, hingga hunian pribadi dengan kemampuan pemantauan visual 24 jam nonstop.
+
+Teknologi CCTV terkini yang diimplementasikan oleh PT. Kreatif Global Solusindo mencakup kamera Analog HD (HDTVI/HDCVI) maupun IP Camera beresolusi tinggi yang dilengkapi fitur Infrared / ColorVu Night Vision, Pan-Tilt-Zoom (PTZ), deteksi pergerakan cerdas, serta akses pemantauan jarak jauh (Remote Monitoring) secara real-time melalui perangkat smartphone maupun komputer.
+
+Kelebihan Sistem CCTV:
+- Pemantauan keamanan area dalam dan luar ruangan secara real-time 24 jam penuh
+- Mencegah tindak kejahatan (efek deterensi) serta menyediakan bukti rekaman digital yang akurat
+- Akses monitoring jarak jauh kapan saja melalui smartphone, tablet, dan PC
+- Membantu pengawasan operasional, keselamatan kerja (K3), dan produktivitas di lingkungan industri
+- Integrasi penuh dengan sistem keamanan lainnya seperti Alarm Security dan Access Door`,
+    coverImage: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1200&q=80',
+    sortOrder: 8,
+    isActive: true,
+    createdAt: '2026-10-25 08:35',
+    updatedAt: '2026-10-25 08:35',
+    images: [
+      {
+        id: 'ss-img-801',
+        imagePath: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Kamera pengawas CCTV Outdoor tahan cuaca (IP67) dengan fitur Night Vision untuk keamanan perimeter',
+        altText: 'Kamera CCTV Outdoor',
+        sortOrder: 1,
+        isPrimary: true
+      },
+      {
+        id: 'ss-img-802',
+        imagePath: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Sistem perekaman terpusat Network Video Recorder (NVR) & Digital Video Recorder (DVR)',
+        altText: 'Perangkat Perekam NVR DVR CCTV',
+        sortOrder: 2
+      },
+      {
+        id: 'ss-img-803',
+        imagePath: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Layar pusat kendali pemantauan (Control Room Multi-View) untuk pengawasan area pabrik dan kantor',
+        altText: 'Monitoring Multi-Kamera CCTV',
+        sortOrder: 3
+      },
+      {
+        id: 'ss-img-804',
+        imagePath: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Instalasi kamera Speed Dome PTZ (Pan-Tilt-Zoom) jarak jauh untuk kawasan industri dan dermaga',
+        altText: 'Instalasi Kamera PTZ Gedung & Kawasan Industri',
+        sortOrder: 4
+      },
+      {
+        id: 'ss-img-805',
+        imagePath: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80',
+        caption: 'Integrasi sistem CCTV IP Camera dengan jaringan fiber optik dan pemantauan mobile jarak jauh',
+        altText: 'Integrasi Jaringan IP Camera CCTV',
+        sortOrder: 5
+      }
+    ]
+  }
+];
+
+
 
 
 

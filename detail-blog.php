@@ -1,133 +1,133 @@
 <?php
+require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/database.php';
 
 $slug = trim($_GET['slug'] ?? '');
-$stmt = $pdo->prepare("SELECT p.*, c.name as category_name, c.slug as category_slug FROM posts p JOIN blog_categories c ON p.category_id = c.id WHERE p.slug = ? AND p.status = 'published'");
+if ($slug === '') {
+    header('Location: blog.php');
+    exit;
+}
+
+$stmt = $pdo->prepare("
+    SELECT p.*, c.name AS category_name, c.slug AS category_slug
+    FROM posts p
+    LEFT JOIN blog_categories c ON p.category_id = c.id
+    WHERE p.slug = ? AND p.status = 'published'
+    LIMIT 1
+");
 $stmt->execute([$slug]);
 $post = $stmt->fetch();
 
 if (!$post) {
-    header("Location: blog.php");
+    header('Location: blog.php');
     exit;
 }
 
-// Increment view count
-$pdo->prepare("UPDATE posts SET views = views + 1 WHERE id = ?")->execute([$post['id']]);
+// Tambah jumlah tayangan secara aman menggunakan prepared statement
+try {
+    $updViews = $pdo->prepare("UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = ?");
+    $updViews->execute([(int)$post['id']]);
+} catch (Exception $e) {}
 
-$page_title = $post['meta_title'] ?: $post['title'];
-$meta_description = $post['meta_description'] ?: $post['summary'];
+$category_label = !empty($post['category_name']) ? $post['category_name'] : ($post['category'] ?? 'Teknologi');
+$author_label   = !empty($post['author']) ? $post['author'] : ($post['author_name'] ?? 'Tim Teknis PT. KGS');
+$summary_text   = !empty($post['summary']) ? $post['summary'] : ($post['excerpt'] ?? '');
+$post_labels    = array_values(array_filter(array_map('trim', explode(',', (string)($post['labels'] ?? '')))));
+
+$page_title = !empty($post['meta_title']) ? $post['meta_title'] : $post['title'];
+$page_desc  = !empty($post['meta_description']) ? $post['meta_description'] : ($summary_text ?: substr(strip_tags((string)$post['content']), 0, 155));
+
+// Artikel lainnya dari tabel `posts`
+$otherStmt = $pdo->prepare("
+    SELECT p.id, p.title, p.slug, p.created_at, c.name AS category_name
+    FROM posts p
+    LEFT JOIN blog_categories c ON p.category_id = c.id
+    WHERE p.id != ? AND p.status = 'published'
+    ORDER BY p.created_at DESC
+    LIMIT 4
+");
+$otherStmt->execute([(int)$post['id']]);
+$otherPosts = $otherStmt->fetchAll();
+
 require_once __DIR__ . '/includes/header.php';
-
-// Artikel terkait di kategori yang sama
-$stmt_related = $pdo->prepare("SELECT * FROM posts WHERE category_id = ? AND id != ? AND status = 'published' ORDER BY created_at DESC LIMIT 3");
-$stmt_related->execute([$post['category_id'], $post['id']]);
-$related_posts = $stmt_related->fetchAll();
-
-$post_labels = array_filter(array_map('trim', explode(',', (string)($post['labels'] ?? ''))));
-$current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['REQUEST_URI'] ?? '');
-$wa_share = "https://wa.me/?text=" . urlencode($post['title'] . " - " . $current_url);
 ?>
 
-<div class="bg-slate-900 text-white py-12">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-        <!-- Breadcrumbs -->
-        <nav class="flex items-center gap-2 text-xs text-slate-400">
+<!-- Header Artikel -->
+<section class="bg-slate-900 text-white py-14 border-b border-slate-800">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-2 text-xs text-slate-400 mb-4">
             <a href="index.php" class="hover:text-white">Beranda</a>
             <span>/</span>
-            <a href="blog.php" class="hover:text-white">Artikel</a>
+            <a href="blog.php" class="hover:text-white">Artikel & Insight</a>
             <span>/</span>
-            <a href="blog.php?kategori=<?= urlencode($post['category_slug']) ?>" class="text-blue-400 hover:text-blue-300"><?= e($post['category_name']) ?></a>
-        </nav>
-
-        <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            <?= e($post['title']) ?>
-        </h1>
-
-        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-2 border-t border-slate-800">
-            <span>✍️ Penulis: <strong><?= e($post['author'] ?: 'Tim Teknis PT. KGS') ?></strong></span>
-            <span>📅 Tanggal: <?= date('d F Y', strtotime($post['created_at'])) ?></span>
-            <span>👁️ <?= number_format((int)$post['views'] + 1) ?> Pembaca</span>
-            <span class="bg-blue-600/40 text-blue-300 px-2.5 py-0.5 rounded font-semibold border border-blue-500/30">
-                <?= e($post['category_name']) ?>
-            </span>
+            <span class="text-blue-400"><?= e($category_label) ?></span>
+        </div>
+        <span class="px-3 py-1 bg-blue-500/20 text-blue-300 font-bold text-xs rounded-full border border-blue-500/30">
+            <?= e($category_label) ?>
+        </span>
+        <h1 data-live-record="posts:<?= (int)$post['id'] ?>:title" class="text-2xl sm:text-4xl font-extrabold mt-4 leading-tight"><?= e($post['title']) ?></h1>
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-4">
+            <span>Oleh: <strong class="text-slate-200" data-live-record="posts:<?= (int)$post['id'] ?>:author"><?= e($author_label) ?></strong></span>
+            <span>•</span>
+            <span>Diterbitkan: <?= date('d M Y', strtotime($post['created_at'])) ?></span>
         </div>
     </div>
-</div>
+</section>
 
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
-    <!-- Main Content Container -->
-    <article class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-10 shadow-xs space-y-6">
-        <?php if (!empty($post['featured_image'])): ?>
-        <div class="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 max-h-96">
-            <img src="<?= e($post['featured_image']) ?>" alt="<?= e($post['alt_image'] ?: $post['title']) ?>" class="w-full h-full object-cover">
-        </div>
-        <?php endif; ?>
+<!-- Isi Artikel -->
+<section class="py-14 bg-white">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            <div class="lg:col-span-8 space-y-6">
+                <?php if (!empty($post['featured_image'])): ?>
+                    <div class="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                        <img src="<?= e($post['featured_image']) ?>" alt="<?= e(!empty($post['alt_image']) ? $post['alt_image'] : $post['title']) ?>" data-live-img="post_image:<?= (int)$post['id'] ?>" class="w-full h-64 sm:h-80 object-cover">
+                    </div>
+                <?php endif; ?>
 
-        <!-- Lead summary -->
-        <div class="p-4 bg-slate-50 border-l-4 border-blue-600 rounded-r-xl text-slate-700 text-sm font-medium leading-relaxed italic">
-            <?= e($post['summary']) ?>
-        </div>
+                <?php if (!empty($summary_text)): ?>
+                    <div data-live-record="posts:<?= (int)$post['id'] ?>:summary" class="p-4 bg-blue-50/70 border-l-4 border-blue-600 rounded-r-xl text-xs sm:text-sm text-slate-700 font-medium italic leading-relaxed"><?= e($summary_text) ?></div>
+                <?php endif; ?>
 
-        <!-- Rich Body -->
-        <div class="prose-kgs max-w-none text-slate-700 text-sm leading-relaxed space-y-4">
-            <?= sanitize_rich_html($post['content']) ?>
-        </div>
+                <article data-live-record="posts:<?= (int)$post['id'] ?>:content" class="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed space-y-4"><?= sanitize_rich_html($post['content'] ?? '') ?></article>
 
-        <?php if (!empty($post_labels)): ?>
-        <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
-            <span class="font-bold text-slate-600">Label Topik:</span>
-            <?php foreach ($post_labels as $lbl): ?>
-                <a href="blog.php?label=<?= urlencode($lbl) ?>" class="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg font-medium transition">
-                    #<?= e($lbl) ?>
-                </a>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
+                <?php if (!empty($post_labels)): ?>
+                    <div class="pt-4 border-t border-slate-200 flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase">Label Topik:</span>
+                        <?php foreach ($post_labels as $lbl): ?>
+                            <a href="blog.php?label=<?= urlencode($lbl) ?>" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-semibold transition">#<?= e($lbl) ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
 
-        <!-- Social Share Bar -->
-        <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-            <span class="font-bold text-slate-700">Bagikan artikel wawasan ini:</span>
-            <div class="flex items-center gap-2">
-                <a href="<?= e($wa_share) ?>" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition flex items-center gap-1.5">
-                    <span>💬 WhatsApp</span>
-                </a>
-                <button type="button" data-copy-text="<?= e($current_url) ?>" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl border transition cursor-pointer">
-                    🔗 Salin Tautan
-                </button>
+            <!-- Sidebar -->
+            <div class="lg:col-span-4 space-y-6">
+                <?php if (!empty($otherPosts)): ?>
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Artikel Terbaru Lainnya</h3>
+                        <div class="space-y-3">
+                            <?php foreach ($otherPosts as $op): ?>
+                                <a href="detail-blog.php?slug=<?= e($op['slug']) ?>" class="block p-3 rounded-xl bg-white border border-slate-200 hover:border-blue-400 transition">
+                                    <span class="text-[10px] font-bold text-blue-600 uppercase"><?= e($op['category_name'] ?: 'Teknologi') ?></span>
+                                    <div class="text-xs font-bold text-slate-800 mt-0.5 line-clamp-2"><?= e($op['title']) ?></div>
+                                    <div class="text-[10px] text-slate-400 mt-1"><?= date('d M Y', strtotime($op['created_at'])) ?></div>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <div class="bg-slate-900 text-white rounded-2xl p-6 space-y-3">
+                    <h4 class="text-sm font-bold" data-live-setting="detail_blog_cta_title"><?= e(get_setting($pdo, 'detail_blog_cta_title', 'Butuh Implementasi Solusi Ini?')) ?></h4>
+                    <p class="text-xs text-slate-300 leading-relaxed" data-live-setting="detail_blog_cta_desc"><?= e(get_setting($pdo, 'detail_blog_cta_desc', 'Hubungi tim engineer PT. KGS untuk diskusi teknis dan survei lokasi.')) ?></p>
+                    <a href="kontak.php#konsultasi" class="block w-full text-center py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition">
+                        Hubungi Tim KGS
+                    </a>
+                </div>
             </div>
         </div>
-    </article>
-
-    <!-- Consultation CTA Box -->
-    <div class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-3xl p-8 shadow-md flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div class="space-y-2 text-center sm:text-left">
-            <h3 class="text-xl font-bold">Butuh Konsultasi Teknis Terkait Topik Ini?</h3>
-            <p class="text-xs text-blue-100 max-w-lg leading-relaxed">
-                Tim engineer PT. Kreatif Global Solusindo siap melakukan survei lokasi dan memberikan rancangan sistem terintegrasi yang tepat guna.
-            </p>
-        </div>
-        <a href="kontak.php#konsultasi" class="px-6 py-3 bg-white text-blue-800 hover:bg-blue-50 font-extrabold text-xs rounded-xl shadow-md transition whitespace-nowrap">
-            Minta Penawaran Resmi
-        </a>
     </div>
-
-    <!-- Related Articles -->
-    <?php if (!empty($related_posts)): ?>
-    <div class="space-y-4">
-        <h3 class="text-lg font-bold text-slate-900">Artikel Terkait Lainnya</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <?php foreach ($related_posts as $r): ?>
-                <a href="detail-blog.php?slug=<?= e($r['slug']) ?>" class="bg-white p-4 rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-xs transition block group">
-                    <span class="text-[10px] text-slate-400 font-mono"><?= date('d M Y', strtotime($r['created_at'])) ?></span>
-                    <h4 class="font-bold text-slate-900 group-hover:text-blue-600 text-xs mt-1 leading-snug line-clamp-2">
-                        <?= e($r['title']) ?>
-                    </h4>
-                    <p class="text-[11px] text-slate-500 line-clamp-2 mt-1"><?= e($r['summary']) ?></p>
-                </a>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-</div>
+</section>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

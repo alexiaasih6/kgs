@@ -7,7 +7,10 @@ import {
   PartnerItem,
   PricingPlanItem,
   FaqItem,
-  StaticPageItem
+  StaticPageItem,
+  FooterCertBadgeItem,
+  parseFooterCertBadges,
+  serializeFooterCertBadges
 } from '../../data/companyData';
 import {
   Compass,
@@ -157,7 +160,7 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
   };
 
   // ============================================================================
-  // 2. SERTIFIKASI RESMI CRUD
+  // 2. SERTIFIKASI RESMI CRUD (DENGAN LOGO, TULISAN & LINK)
   // ============================================================================
   const [editingCert, setEditingCert] = useState<CertificationItem | null>(null);
   const [isAddingCert, setIsAddingCert] = useState(false);
@@ -165,8 +168,22 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
     title: '',
     issuerOrBrand: '',
     holder: 'PT. KREATIF GLOBAL SOLUSINDO',
-    yearOrValidity: ''
+    yearOrValidity: '',
+    logoUrl: '',
+    linkUrl: ''
   });
+
+  const handleCertLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setCertForm(prev => ({ ...prev, logoUrl: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSaveCert = (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,13 +197,15 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 title: certForm.title.trim(),
                 issuerOrBrand: certForm.issuerOrBrand.trim(),
                 holder: certForm.holder.trim(),
-                yearOrValidity: certForm.yearOrValidity.trim()
+                yearOrValidity: certForm.yearOrValidity.trim(),
+                logoUrl: certForm.logoUrl.trim() || undefined,
+                linkUrl: certForm.linkUrl.trim() || undefined
               }
             : c
         )
       );
       setEditingCert(null);
-      showToast(`Sertifikasi "${certForm.title}" berhasil diperbarui!`);
+      showToast(`Sertifikasi "${certForm.title}" (beserta logo & link) berhasil diperbarui!`);
     } else {
       const newItem: CertificationItem = {
         id: `cert-${Date.now()}`,
@@ -194,6 +213,8 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
         issuerOrBrand: certForm.issuerOrBrand.trim(),
         holder: certForm.holder.trim() || 'PT. KREATIF GLOBAL SOLUSINDO',
         yearOrValidity: certForm.yearOrValidity.trim() || 'Terdaftar Resmi',
+        logoUrl: certForm.logoUrl.trim() || undefined,
+        linkUrl: certForm.linkUrl.trim() || undefined,
         pdfPage: 21
       };
       onUpdateCertifications([...certifications, newItem]);
@@ -208,15 +229,93 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
   };
 
   // ============================================================================
-  // 3. MITRA KERJA CRUD
+  // 2B. LISENSI, SERTIFIKASI & KEANGGOTAAN (TULISAN, LINK & LOGO)
+  // ============================================================================
+  const [editingBadgeIndex, setEditingBadgeIndex] = useState<number | null>(null);
+  const [badgeForm, setBadgeForm] = useState<FooterCertBadgeItem>({
+    label: '',
+    url: '',
+    logo: ''
+  });
+
+  const licenseBadgesList = parseFooterCertBadges(
+    settingsForm.footerCertBadges || DEFAULT_COMPANY_SETTINGS.footerCertBadges
+  );
+
+  const handleBadgeLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setBadgeForm(prev => ({ ...prev, logo: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveLicenseBadge = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!badgeForm.label.trim()) return;
+    const nextList = [...licenseBadgesList];
+    const cleanItem: FooterCertBadgeItem = {
+      label: badgeForm.label.trim(),
+      url: badgeForm.url.trim(),
+      logo: badgeForm.logo.trim()
+    };
+    if (editingBadgeIndex !== null && editingBadgeIndex >= 0 && editingBadgeIndex < nextList.length) {
+      nextList[editingBadgeIndex] = cleanItem;
+    } else {
+      nextList.push(cleanItem);
+    }
+    const serialized = serializeFooterCertBadges(nextList);
+    const updatedSettings = {
+      ...settingsForm,
+      footerCertBadges: serialized
+    };
+    setSettingsForm(updatedSettings);
+    onUpdateCompanySettings(updatedSettings);
+    setEditingBadgeIndex(null);
+    setBadgeForm({ label: '', url: '', logo: '' });
+    showToast('Item Lisensi, Sertifikasi & Keanggotaan (Tulisan, Link & Logo) berhasil disimpan!');
+  };
+
+  const handleDeleteLicenseBadge = (idx: number) => {
+    const nextList = licenseBadgesList.filter((_, i) => i !== idx);
+    const serialized = serializeFooterCertBadges(nextList);
+    const updatedSettings = {
+      ...settingsForm,
+      footerCertBadges: serialized
+    };
+    setSettingsForm(updatedSettings);
+    onUpdateCompanySettings(updatedSettings);
+    showToast('Item Lisensi, Sertifikasi & Keanggotaan berhasil dihapus.');
+  };
+
+  // ============================================================================
+  // 3. MITRA KERJA CRUD (DENGAN LOGO, TULISAN & LINK)
   // ============================================================================
   const [editingPartner, setEditingPartner] = useState<PartnerItem | null>(null);
   const [isAddingPartner, setIsAddingPartner] = useState(false);
   const [partnerForm, setPartnerForm] = useState({
     name: '',
     role: 'Guywire Tower Support for ISP',
-    serviceType: 'Tower & Backbone'
+    serviceType: 'Tower & Backbone',
+    logoUrl: '',
+    linkUrl: ''
   });
+
+  const handlePartnerLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPartnerForm(prev => ({ ...prev, logoUrl: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSavePartner = (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,19 +328,23 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 ...p,
                 name: partnerForm.name.trim(),
                 role: partnerForm.role.trim(),
-                serviceType: partnerForm.serviceType.trim()
+                serviceType: partnerForm.serviceType.trim(),
+                logoUrl: partnerForm.logoUrl.trim() || undefined,
+                linkUrl: partnerForm.linkUrl.trim() || undefined
               }
             : p
         )
       );
       setEditingPartner(null);
-      showToast(`Mitra kerja "${partnerForm.name}" berhasil diperbarui!`);
+      showToast(`Mitra kerja "${partnerForm.name}" (beserta logo & link) berhasil diperbarui!`);
     } else {
       const newItem: PartnerItem = {
         id: `p-${Date.now()}`,
         name: partnerForm.name.trim(),
         role: partnerForm.role.trim(),
         serviceType: partnerForm.serviceType.trim() || 'Tower & Backbone',
+        logoUrl: partnerForm.logoUrl.trim() || undefined,
+        linkUrl: partnerForm.linkUrl.trim() || undefined,
         pdfPage: 16
       };
       onUpdatePartners([...partners, newItem]);
@@ -1270,7 +1373,253 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
             </div>
           </form>
 
-          {/* C. SERTIFIKASI RESMI, LISENSI & OTORISASI BRAND */}
+          {/* B2. LISENSI, SERTIFIKASI & KEANGGOTAAN (PENGATURAN MENAMBAHKAN TULISAN, LINK & LOGO) */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+              <div>
+                <div className="flex items-center gap-2 text-emerald-600 font-bold uppercase text-[11px]">
+                  <Award className="w-4 h-4" />
+                  <span>Lisensi, Sertifikasi & Keanggotaan (Footer & Tentang Kami)</span>
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 mt-0.5">
+                  Pengaturan Menambahkan Tulisan, Link & Logo ({licenseBadgesList.length} Item)
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Tambahkan atau edit lencana Lisensi, Sertifikasi & Keanggotaan beserta tautan URL tujuan dan logo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={e =>
+                  handleSaveSettingsForm(e, 'Judul & Status Lisensi, Sertifikasi & Keanggotaan')
+                }
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <Check className="w-4 h-4" />
+                <span>Simpan Judul & Status</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Tampilan Baris &quot;Sertifikasi &amp; Keanggotaan Resmi&quot; di Footer
+                </label>
+                <select
+                  value={settingsForm.footerShowCertSection !== false ? '1' : '0'}
+                  onChange={e =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      footerShowCertSection: e.target.value === '1'
+                    })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold text-slate-900"
+                >
+                  <option value="1">✓ Ditampilkan di Footer</option>
+                  <option value="0">✕ Tidak Ditampilkan (Sembunyikan)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Tampilan Label &quot;✓ Terverifikasi &amp; Berlisensi Resmi&quot;
+                </label>
+                <select
+                  value={settingsForm.footerShowCertStatus !== false ? '1' : '0'}
+                  onChange={e =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      footerShowCertStatus: e.target.value === '1'
+                    })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold text-slate-900"
+                >
+                  <option value="1">✓ Ditampilkan di Footer</option>
+                  <option value="0">✕ Tidak Ditampilkan (Sembunyikan)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Tampilan Badge &quot;Lisensi, Sertifikasi &amp; Keanggotaan&quot; (Kolom Kiri)
+                </label>
+                <select
+                  value={settingsForm.footerShowCertBadges !== false ? '1' : '0'}
+                  onChange={e =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      footerShowCertBadges: e.target.value === '1'
+                    })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold text-slate-900"
+                >
+                  <option value="1">✓ Ditampilkan di Footer</option>
+                  <option value="0">✕ Tidak Ditampilkan (Sembunyikan)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Judul Baris Sertifikasi Footer
+                </label>
+                <input
+                  type="text"
+                  value={settingsForm.footerCertCardTitle || 'Sertifikasi & Keanggotaan Resmi'}
+                  onChange={e =>
+                    setSettingsForm({ ...settingsForm, footerCertCardTitle: e.target.value })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Teks Status Verifikasi Hijau
+                </label>
+                <input
+                  type="text"
+                  value={
+                    settingsForm.footerCertCardStatus || '✓ Terverifikasi & Berlisensi Resmi'
+                  }
+                  onChange={e =>
+                    setSettingsForm({ ...settingsForm, footerCertCardStatus: e.target.value })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 text-emerald-700 font-semibold"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Judul Bagian (Lisensi, Sertifikasi &amp; Keanggotaan)
+                </label>
+                <input
+                  type="text"
+                  value={settingsForm.footerCertHeading || 'Lisensi, Sertifikasi & Keanggotaan'}
+                  onChange={e =>
+                    setSettingsForm({ ...settingsForm, footerCertHeading: e.target.value })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold"
+                />
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleSaveLicenseBadge}
+              className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-3"
+            >
+              <div className="font-bold text-emerald-950">
+                {editingBadgeIndex !== null
+                  ? `Edit Item Lisensi #${editingBadgeIndex + 1}: ${badgeForm.label}`
+                  : '+ Tambah Item Lisensi, Sertifikasi & Keanggotaan Baru'}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold mb-1">Tulisan / Nama Lisensi *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: APJII Official Member"
+                    value={badgeForm.label}
+                    onChange={e => setBadgeForm({ ...badgeForm, label: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Link URL Tujuan (Opsional)</label>
+                  <input
+                    type="text"
+                    placeholder="https://apjii.or.id atau #"
+                    value={badgeForm.url}
+                    onChange={e => setBadgeForm({ ...badgeForm, url: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Upload Logo / Ikon (Opsional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBadgeLogoUpload}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-[11px]"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <input
+                  type="text"
+                  placeholder="Atau tempel URL gambar logo..."
+                  value={badgeForm.logo}
+                  onChange={e => setBadgeForm({ ...badgeForm, logo: e.target.value })}
+                  className="flex-1 bg-white border border-slate-300 rounded-lg p-2 font-mono text-[11px]"
+                />
+                <div className="flex items-center gap-2 shrink-0">
+                  {editingBadgeIndex !== null && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingBadgeIndex(null);
+                        setBadgeForm({ label: '', url: '', logo: '' });
+                      }}
+                      className="px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold cursor-pointer"
+                  >
+                    {editingBadgeIndex !== null ? 'Simpan Perubahan' : '+ Tambah Tulisan & Link'}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {licenseBadgesList.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-2"
+                >
+                  <div className="flex items-start gap-2.5">
+                    {item.logo && (
+                      <img
+                        src={item.logo}
+                        alt={item.label}
+                        className="w-8 h-8 rounded bg-white border border-slate-200 p-0.5 object-contain shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-xs">{item.label}</div>
+                      <div className="text-[11px] text-blue-600 font-mono truncate">
+                        {item.url || 'Tanpa tautan'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-1.5 pt-2 border-t border-slate-200/70">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingBadgeIndex(idx);
+                        setBadgeForm({
+                          label: item.label,
+                          url: item.url || '',
+                          logo: item.logo || ''
+                        });
+                      }}
+                      className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="w-3 h-3" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLicenseBadge(idx)}
+                      className="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" /> Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* C. SERTIFIKASI RESMI, LISENSI & OTORISASI BRAND (TULISAN, LINK & LOGO) */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
               <div>
@@ -1281,6 +1630,9 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 <h3 className="text-base font-extrabold text-slate-900 mt-0.5">
                   Sertifikasi Resmi, Lisensi & Otorisasi Brand ({certifications.length})
                 </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Mendukung pengaturan tulisan, upload logo sertifikasi/prinsipal, serta link verifikasi.
+                </p>
               </div>
               <button
                 type="button"
@@ -1290,14 +1642,16 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                     title: '',
                     issuerOrBrand: '',
                     holder: 'PT. KREATIF GLOBAL SOLUSINDO',
-                    yearOrValidity: ''
+                    yearOrValidity: '',
+                    logoUrl: '',
+                    linkUrl: ''
                   });
                   setIsAddingCert(true);
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Tambah Sertifikasi / Lisensi</span>
+                <span>+ Tambah Sertifikasi, Logo & Link</span>
               </button>
             </div>
 
@@ -1311,7 +1665,7 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold mb-1">Nama Sertifikasi / Lisensi *</label>
+                    <label className="block font-bold mb-1">Nama Sertifikasi / Lisensi (Tulisan) *</label>
                     <input
                       type="text"
                       required
@@ -1351,6 +1705,34 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                       className="w-full bg-white border border-slate-300 rounded-lg p-2"
                     />
                   </div>
+                  <div>
+                    <label className="block font-bold mb-1">Link URL Sertifikasi / Verifikasi (Opsional)</label>
+                    <input
+                      type="text"
+                      placeholder="https://..."
+                      value={certForm.linkUrl}
+                      onChange={e => setCertForm({ ...certForm, linkUrl: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold mb-1">Upload Logo Sertifikasi / Brand (Opsional)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCertLogoUpload}
+                        className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-[11px]"
+                      />
+                      {certForm.logoUrl && (
+                        <img
+                          src={certForm.logoUrl}
+                          alt="Logo Preview"
+                          className="w-9 h-9 rounded bg-white border p-0.5 object-contain shrink-0"
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2">
                   <button
@@ -1379,13 +1761,27 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                   key={cert.id}
                   className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between"
                 >
-                  <div>
-                    <div className="font-bold text-slate-900 text-sm">{cert.title}</div>
-                    <div className="text-blue-600 font-semibold mt-0.5">{cert.issuerOrBrand}</div>
-                    <div className="text-[11px] text-slate-500 mt-1">Penerima: {cert.holder}</div>
-                    {cert.yearOrValidity && (
-                      <div className="text-[11px] text-slate-400 mt-0.5">{cert.yearOrValidity}</div>
+                  <div className="flex items-start gap-3">
+                    {cert.logoUrl && (
+                      <img
+                        src={cert.logoUrl}
+                        alt={cert.title}
+                        className="w-10 h-10 rounded-lg bg-white border border-slate-200 p-1 object-contain shrink-0"
+                      />
                     )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-sm">{cert.title}</div>
+                      <div className="text-blue-600 font-semibold mt-0.5">{cert.issuerOrBrand}</div>
+                      <div className="text-[11px] text-slate-500 mt-1">Penerima: {cert.holder}</div>
+                      {cert.yearOrValidity && (
+                        <div className="text-[11px] text-slate-400 mt-0.5">{cert.yearOrValidity}</div>
+                      )}
+                      {cert.linkUrl && (
+                        <div className="text-[11px] text-blue-600 font-mono truncate mt-0.5">
+                          🔗 {cert.linkUrl}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-end gap-1.5 pt-3 mt-3 border-t border-slate-200/70">
                     <button
@@ -1397,7 +1793,9 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                           title: cert.title,
                           issuerOrBrand: cert.issuerOrBrand,
                           holder: cert.holder,
-                          yearOrValidity: cert.yearOrValidity || ''
+                          yearOrValidity: cert.yearOrValidity || '',
+                          logoUrl: cert.logoUrl || '',
+                          linkUrl: cert.linkUrl || ''
                         });
                       }}
                       className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg font-semibold flex items-center gap-1 cursor-pointer"
@@ -1417,7 +1815,7 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
             </div>
           </div>
 
-          {/* D. MITRA KERJA & JARINGAN REKANAN */}
+          {/* D. MITRA KERJA & JARINGAN REKANAN (TULISAN, LINK & LOGO) */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
               <div>
@@ -1428,6 +1826,9 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 <h3 className="text-base font-extrabold text-slate-900 mt-0.5">
                   Mitra Kerja Dukungan Lastmile & Guywire Tower ISP ({partners.length})
                 </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Mendukung pengaturan nama/peran mitra, upload logo brand mitra, serta link website mitra.
+                </p>
               </div>
               <button
                 type="button"
@@ -1436,14 +1837,16 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                   setPartnerForm({
                     name: '',
                     role: 'Guywire Tower Support for ISP',
-                    serviceType: 'Tower & Backbone'
+                    serviceType: 'Tower & Backbone',
+                    logoUrl: '',
+                    linkUrl: ''
                   });
                   setIsAddingPartner(true);
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Tambah Mitra Kerja</span>
+                <span>+ Tambah Mitra, Logo & Link</span>
               </button>
             </div>
 
@@ -1457,7 +1860,7 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-bold mb-1">Nama Perusahaan Mitra *</label>
+                    <label className="block font-bold mb-1">Nama Perusahaan Mitra (Tulisan) *</label>
                     <input
                       type="text"
                       required
@@ -1487,6 +1890,34 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                       className="w-full bg-white border border-slate-300 rounded-lg p-2"
                     />
                   </div>
+                  <div>
+                    <label className="block font-bold mb-1">Link Website Mitra (Opsional)</label>
+                    <input
+                      type="text"
+                      placeholder="https://..."
+                      value={partnerForm.linkUrl}
+                      onChange={e => setPartnerForm({ ...partnerForm, linkUrl: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 font-mono"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold mb-1">Upload Logo Mitra (Opsional)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePartnerLogoUpload}
+                        className="flex-1 bg-white border border-slate-300 rounded-lg p-1.5 text-[11px]"
+                      />
+                      {partnerForm.logoUrl && (
+                        <img
+                          src={partnerForm.logoUrl}
+                          alt="Logo Preview"
+                          className="w-9 h-9 rounded bg-white border p-0.5 object-contain shrink-0"
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2">
                   <button
@@ -1515,9 +1946,23 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                   key={p.id}
                   className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2"
                 >
-                  <div>
-                    <div className="font-bold text-slate-900">{p.name}</div>
-                    <div className="text-[11px] text-blue-600 font-medium">{p.role}</div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {p.logoUrl && (
+                      <img
+                        src={p.logoUrl}
+                        alt={p.name}
+                        className="w-10 h-10 rounded-lg bg-white border border-slate-200 p-1 object-contain shrink-0"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 truncate">{p.name}</div>
+                      <div className="text-[11px] text-blue-600 font-medium truncate">{p.role}</div>
+                      {p.linkUrl && (
+                        <div className="text-[10px] text-slate-500 font-mono truncate">
+                          🔗 {p.linkUrl}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -1528,7 +1973,9 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                         setPartnerForm({
                           name: p.name,
                           role: p.role,
-                          serviceType: p.serviceType
+                          serviceType: p.serviceType,
+                          logoUrl: p.logoUrl || '',
+                          linkUrl: p.linkUrl || ''
                         });
                       }}
                       className="p-1.5 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 cursor-pointer"
@@ -2143,6 +2590,157 @@ export const AdminWebsiteSections: React.FC<AdminWebsiteSectionsProps> = ({
                 }
                 className="w-full border border-slate-300 rounded-xl p-3"
               />
+            </div>
+
+            <div className="md:col-span-2 p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Sertifikasi &amp; Keanggotaan Resmi di Footer
+                </label>
+                <select
+                  value={settingsForm.footerShowCertSection !== false ? '1' : '0'}
+                  onChange={e =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      footerShowCertSection: e.target.value === '1'
+                    })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold"
+                >
+                  <option value="1">✓ Ditampilkan</option>
+                  <option value="0">✕ Tidak Ditampilkan</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Label &quot;✓ Terverifikasi &amp; Berlisensi Resmi&quot;
+                </label>
+                <select
+                  value={settingsForm.footerShowCertStatus !== false ? '1' : '0'}
+                  onChange={e =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      footerShowCertStatus: e.target.value === '1'
+                    })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold"
+                >
+                  <option value="1">✓ Ditampilkan</option>
+                  <option value="0">✕ Tidak Ditampilkan</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Badge Lisensi Kolom Kiri Footer
+                </label>
+                <select
+                  value={settingsForm.footerShowCertBadges !== false ? '1' : '0'}
+                  onChange={e =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      footerShowCertBadges: e.target.value === '1'
+                    })
+                  }
+                  className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-bold"
+                >
+                  <option value="1">✓ Ditampilkan</option>
+                  <option value="0">✕ Tidak Ditampilkan</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Pengaturan Icon Sosial Media di Footer (Bagian Alamat Kantor & Kontak) */}
+            <div className="md:col-span-2 p-4 rounded-xl bg-blue-50/60 border border-blue-200 space-y-3">
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                  🌐 Pengaturan Icon Sosial Media di Footer (Bagian Alamat Kantor &amp; Kontak)
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Atur URL akun sosial media resmi PT. KGS. Kosongkan jika ingin menyembunyikan icon tertentu.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">📘 URL Facebook</label>
+                  <input
+                    type="text"
+                    value={
+                      settingsForm.socialFacebook !== undefined
+                        ? settingsForm.socialFacebook
+                        : 'https://facebook.com/kgs.palembang'
+                    }
+                    onChange={e =>
+                      setSettingsForm({ ...settingsForm, socialFacebook: e.target.value })
+                    }
+                    placeholder="https://facebook.com/..."
+                    className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">📸 URL Instagram</label>
+                  <input
+                    type="text"
+                    value={
+                      settingsForm.socialInstagram !== undefined
+                        ? settingsForm.socialInstagram
+                        : 'https://instagram.com/kgs.palembang'
+                    }
+                    onChange={e =>
+                      setSettingsForm({ ...settingsForm, socialInstagram: e.target.value })
+                    }
+                    placeholder="https://instagram.com/..."
+                    className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">💼 URL LinkedIn</label>
+                  <input
+                    type="text"
+                    value={
+                      settingsForm.socialLinkedin !== undefined
+                        ? settingsForm.socialLinkedin
+                        : 'https://linkedin.com/company/kreatif-global-solusindo'
+                    }
+                    onChange={e =>
+                      setSettingsForm({ ...settingsForm, socialLinkedin: e.target.value })
+                    }
+                    placeholder="https://linkedin.com/company/..."
+                    className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">▶️ URL YouTube</label>
+                  <input
+                    type="text"
+                    value={
+                      settingsForm.socialYoutube !== undefined
+                        ? settingsForm.socialYoutube
+                        : 'https://youtube.com/@kreatifglobalsolusindo'
+                    }
+                    onChange={e =>
+                      setSettingsForm({ ...settingsForm, socialYoutube: e.target.value })
+                    }
+                    placeholder="https://youtube.com/@..."
+                    className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">🎵 URL TikTok</label>
+                  <input
+                    type="text"
+                    value={
+                      settingsForm.socialTiktok !== undefined
+                        ? settingsForm.socialTiktok
+                        : 'https://tiktok.com/@kgs.palembang'
+                    }
+                    onChange={e =>
+                      setSettingsForm({ ...settingsForm, socialTiktok: e.target.value })
+                    }
+                    placeholder="https://tiktok.com/@..."
+                    className="w-full border border-slate-300 bg-white rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </form>

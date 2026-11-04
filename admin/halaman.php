@@ -16,38 +16,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $post_action = $_POST['post_action'] ?? 'save';
 
-    if ($post_action === 'delete') {
-        $del_id = (int)($_POST['page_id'] ?? 0);
-        if ($del_id > 0) {
-            $stmt = $pdo->prepare("SELECT title, slug FROM pages WHERE id = ?");
-            $stmt->execute([$del_id]);
-            $row = $stmt->fetch();
-            if ($row) {
-                $del = $pdo->prepare("DELETE FROM pages WHERE id = ?");
-                $del->execute([$del_id]);
-                log_audit($pdo, 'Hapus Halaman', "Menghapus halaman: {$row['title']} ({$row['slug']})");
-                $msg = "Halaman \"{$row['title']}\" berhasil dihapus.";
+    try {
+        if ($post_action === 'delete') {
+            $del_id = (int)($_POST['page_id'] ?? 0);
+            if ($del_id > 0) {
+                $stmt = $pdo->prepare("SELECT title, slug FROM pages WHERE id = ?");
+                $stmt->execute([$del_id]);
+                $row = $stmt->fetch();
+                if ($row) {
+                    $del = $pdo->prepare("DELETE FROM pages WHERE id = ?");
+                    $del->execute([$del_id]);
+                    invalidate_live_preview_json('pages', $row['slug']);
+                    log_audit($pdo, 'Hapus Halaman', "Menghapus halaman: {$row['title']} ({$row['slug']})");
+                    $msg = "Halaman \"{$row['title']}\" berhasil dihapus.";
+                }
             }
-        }
-    } elseif ($post_action === 'add') {
-        $title = trim($_POST['title'] ?? '');
-        $raw_slug = trim($_POST['slug'] ?? '');
-        $slug = create_slug($raw_slug !== '' ? $raw_slug : $title);
-        $summary = trim($_POST['summary'] ?? '');
-        $content = trim($_POST['content'] ?? '');
-        $meta_title = trim($_POST['meta_title'] ?? '');
-        $meta_description = trim($_POST['meta_description'] ?? '');
-        $sort_order = (int)($_POST['sort_order'] ?? 12);
-        $is_published = isset($_POST['is_published']) ? 1 : 0;
-        $nav_location = $_POST['nav_location'] ?? 'none';
-        $nav_label = trim($_POST['nav_label'] ?? '') ?: $title;
-        $nav_order = (int)($_POST['nav_order'] ?? 8);
+        } elseif ($post_action === 'add') {
+            $title = clean_plain_text(strip_tags($_POST['title'] ?? ''), 200);
+            $raw_slug = trim($_POST['slug'] ?? '');
+            $slug = create_slug($raw_slug !== '' ? $raw_slug : $title);
+            $summary = clean_plain_text(strip_tags($_POST['summary'] ?? ''), 1000);
+            $content = sanitize_rich_html($_POST['content'] ?? '');
+            $meta_title = clean_plain_text(strip_tags($_POST['meta_title'] ?? ''), 255);
+            $meta_description = clean_plain_text(strip_tags($_POST['meta_description'] ?? ''), 500);
+            $sort_order = (int)($_POST['sort_order'] ?? 12);
+            $is_published = isset($_POST['is_published']) ? 1 : 0;
+            $nav_location = $_POST['nav_location'] ?? 'none';
+            $nav_label = clean_plain_text(strip_tags($_POST['nav_label'] ?? ''), 100) ?: $title;
+            $nav_order = (int)($_POST['nav_order'] ?? 8);
 
-        if ($title === '' || $content === '') {
-            $error_msg = 'Judul Halaman dan Isi Konten wajib diisi.';
-            $action = 'add';
-        } else {
-            try {
+            if ($title === '' || $content === '') {
+                $error_msg = 'Judul Halaman dan Isi Konten wajib diisi.';
+                $action = 'add';
+            } else {
                 $stmt_ins = $pdo->prepare("INSERT INTO pages (title, slug, summary, content, meta_title, meta_description, is_published, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), content = VALUES(content), meta_title = VALUES(meta_title), meta_description = VALUES(meta_description), is_published = VALUES(is_published), sort_order = VALUES(sort_order)");
                 $stmt_ins->execute([
                     $title,
@@ -62,58 +63,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (in_array($nav_location, ['header', 'footer'], true)) {
                     $target_url = resolve_page_slug_to_url($slug);
-                    $stmt_nav = $pdo->prepare("INSERT INTO menus (title, url, location, sort_order, target, is_active) VALUES (?, ?, ?, ?, '_self', 1)");
-                    $stmt_nav->execute([$nav_label, $target_url, $nav_location, $nav_order]);
+                    $stmt_nav = $pdo->prepare("INSERT INTO menus (title, url, page_slug, location, menu_location, sort_order, target, is_active) VALUES (?, ?, ?, ?, ?, ?, '_self', 1)");
+                    $stmt_nav->execute([$nav_label, $target_url, $slug, $nav_location, $nav_location, $nav_order]);
+                    invalidate_live_preview_json('menus');
                 }
 
+                invalidate_live_preview_json('pages', $slug);
                 log_audit($pdo, 'Tambah Halaman', "Menambahkan halaman baru: $title ($slug)");
                 $msg = "Halaman \"$title\" berhasil ditambahkan" . (in_array($nav_location, ['header', 'footer'], true) ? " dan ditautkan ke Navigasi " . ucfirst($nav_location) : "") . "!";
                 $action = 'list';
-            } catch (Exception $e) {
-                $error_msg = 'Gagal menyimpan halaman baru: ' . $e->getMessage();
-                $action = 'add';
+            }
+        } else {
+            $page_id = (int)($_POST['page_id'] ?? 0);
+            $title = clean_plain_text(strip_tags($_POST['title'] ?? ''), 200);
+            $raw_slug = trim($_POST['slug'] ?? '');
+            $slug = create_slug($raw_slug !== '' ? $raw_slug : $title);
+            $summary = clean_plain_text(strip_tags($_POST['summary'] ?? ''), 1000);
+            $content = sanitize_rich_html($_POST['content'] ?? '');
+            $meta_title = clean_plain_text(strip_tags($_POST['meta_title'] ?? ''), 255);
+            $meta_description = clean_plain_text(strip_tags($_POST['meta_description'] ?? ''), 500);
+            $sort_order = (int)($_POST['sort_order'] ?? 1);
+            $is_published = isset($_POST['is_published']) ? 1 : 0;
+
+            if ($page_id > 0 && $title !== '' && $content !== '') {
+                $stmt_update = $pdo->prepare("UPDATE pages SET title = ?, slug = ?, summary = ?, content = ?, meta_title = ?, meta_description = ?, is_published = ?, sort_order = ?, updated_at = NOW() WHERE id = ?");
+                $stmt_update->execute([$title, $slug, $summary, $content, $meta_title ?: $title, $meta_description ?: $summary, $is_published, $sort_order, $page_id]);
+                invalidate_live_preview_json('pages', $slug);
+                log_audit($pdo, 'Edit Halaman', "Memperbarui konten halaman ID #$page_id ($slug): $title");
+                $msg = "Konten halaman \"$title\" berhasil diperbarui dan langsung aktif di website!";
+                $action = 'list';
+            } else {
+                $error_msg = 'Judul Halaman dan Isi Konten Halaman wajib diisi.';
             }
         }
-    } else {
-        $page_id = (int)($_POST['page_id'] ?? 0);
-        $title = trim($_POST['title'] ?? '');
-        $raw_slug = trim($_POST['slug'] ?? '');
-        $slug = create_slug($raw_slug !== '' ? $raw_slug : $title);
-        $summary = trim($_POST['summary'] ?? '');
-        $content = trim($_POST['content'] ?? '');
-        $meta_title = trim($_POST['meta_title'] ?? '');
-        $meta_description = trim($_POST['meta_description'] ?? '');
-        $sort_order = (int)($_POST['sort_order'] ?? 1);
-        $is_published = isset($_POST['is_published']) ? 1 : 0;
-
-        if ($page_id > 0 && $title !== '' && $content !== '') {
-            $stmt_update = $pdo->prepare("UPDATE pages SET title = ?, slug = ?, summary = ?, content = ?, meta_title = ?, meta_description = ?, is_published = ?, sort_order = ?, updated_at = NOW() WHERE id = ?");
-            $stmt_update->execute([$title, $slug, $summary, $content, $meta_title ?: $title, $meta_description ?: $summary, $is_published, $sort_order, $page_id]);
-            log_audit($pdo, 'Edit Halaman', "Memperbarui konten halaman ID #$page_id ($slug): $title");
-            $msg = "Konten halaman \"$title\" berhasil diperbarui dan langsung aktif di website!";
-            $action = 'list';
-        } else {
-            $error_msg = 'Judul Halaman dan Isi Konten Halaman wajib diisi.';
-        }
+    } catch (Exception $e) {
+        $error_msg = 'Gagal memproses perubahan halaman: ' . $e->getMessage();
     }
 }
 
 // Mode Edit (berdasarkan ID atau Slug)
 $page_to_edit = null;
 if ($action === 'edit') {
-    if ($edit_id > 0) {
-        $stmt = $pdo->prepare("SELECT * FROM pages WHERE id = ?");
-        $stmt->execute([$edit_id]);
-        $page_to_edit = $stmt->fetch();
-    } elseif ($edit_slug !== '') {
-        $stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = ?");
-        $stmt->execute([$edit_slug]);
-        $page_to_edit = $stmt->fetch();
+    try {
+        if ($edit_id > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM pages WHERE id = ?");
+            $stmt->execute([$edit_id]);
+            $page_to_edit = $stmt->fetch();
+        } elseif ($edit_slug !== '') {
+            $stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = ?");
+            $stmt->execute([$edit_slug]);
+            $page_to_edit = $stmt->fetch();
+        }
+    } catch (Exception $e) {
+        $page_to_edit = null;
     }
 }
 
-$pages = $pdo->query("SELECT * FROM pages ORDER BY sort_order ASC, id ASC")->fetchAll();
-$core_slugs = ['beranda', 'tentang-kami', 'layanan', 'harga', 'faq', 'portofolio', 'kontak', 'profil-perusahaan', 'visi-misi-budaya', 'blog', 'kebijakan-privasi'];
+$pages = [];
+try {
+    $pages = $pdo->query("SELECT * FROM pages ORDER BY sort_order ASC, id ASC")->fetchAll();
+} catch (Exception $e) {
+    try {
+        $pages = $pdo->query("SELECT * FROM pages ORDER BY id ASC")->fetchAll();
+    } catch (Exception $e2) {
+        $pages = [];
+    }
+}
+if (empty($pages)) {
+    $idx = 1;
+    foreach (get_default_system_pages() as $def_p) {
+        $def_p['id'] = $idx++;
+        $def_p['is_published'] = 1;
+        $def_p['updated_at'] = date('Y-m-d H:i:s');
+        $pages[] = $def_p;
+    }
+}
+$core_slugs = ['beranda', 'tentang-kami', 'layanan', 'harga', 'faq', 'portofolio', 'klien', 'kontak', 'profil-perusahaan', 'visi-misi-budaya', 'blog', 'kebijakan-privasi'];
 ?>
 
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">

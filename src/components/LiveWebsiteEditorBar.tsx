@@ -144,9 +144,15 @@ export const LiveWebsiteEditorBar: React.FC<LiveWebsiteEditorBarProps> = ({
     setTimeout(() => setToastMsg(''), 3200);
   };
 
+  const sanitizePlainText = (raw: string): string => {
+    return raw.replace(/<\/?[a-z][^>]*>/gi, '').replace(/javascript:/gi, '').trim();
+  };
+
   // Apply persisted inline overrides to DOM elements with data-live-key or matching original text
   useEffect(() => {
-    Object.entries(inlineOverrides).forEach(([key, val]) => {
+    Object.entries(inlineOverrides).forEach(([key, rawVal]) => {
+      const val = sanitizePlainText(String(rawVal || ''));
+      if (!val) return;
       const byAttr = document.querySelector(`[data-live-key="${CSS.escape(key)}"]`);
       if (byAttr) {
         if (byAttr.tagName === 'IMG') {
@@ -170,11 +176,12 @@ export const LiveWebsiteEditorBar: React.FC<LiveWebsiteEditorBarProps> = ({
     });
   }, [inlineOverrides, isLiveEditMode]);
 
-  // Global click interceptor when isLiveEditMode is ON so admin can click ANY text or image on the website
+  // Global click interceptor when isLiveEditMode is ON AND admin is authenticated
   useEffect(() => {
-    if (!isLiveEditMode) return;
+    if (!isLiveEditMode || localStorage.getItem('kgs_admin_auth') !== 'true') return;
 
     const handleDocumentClick = (e: MouseEvent) => {
+      if (localStorage.getItem('kgs_admin_auth') !== 'true') return;
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
@@ -183,12 +190,13 @@ export const LiveWebsiteEditorBar: React.FC<LiveWebsiteEditorBarProps> = ({
         return;
       }
 
-      // Allow normal menu navigation when clicking inside <nav>, mobile menu, or category filter tabs
+      // Allow normal menu navigation when clicking inside <nav>, mobile menu, or category filter tabs, or any <a> navigation link (unless Alt key is held)
       if (
         target.closest('nav') ||
         target.closest('#mobileMenu') ||
         target.closest('[data-live-nav="true"]') ||
-        target.closest('[data-theme-btn]')
+        target.closest('[data-theme-btn]') ||
+        (target.closest('a[href]') && !e.altKey)
       ) {
         return;
       }
@@ -578,7 +586,21 @@ export const LiveWebsiteEditorBar: React.FC<LiveWebsiteEditorBarProps> = ({
 
   const handleSaveDomEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!domEditTarget) return;
+    if (!domEditTarget || localStorage.getItem('kgs_admin_auth') !== 'true') {
+      setDomEditTarget(null);
+      return;
+    }
+
+    const safeVal =
+      domEditTarget.type === 'image'
+        ? domEditTarget.value.replace(/javascript:/gi, '').trim()
+        : sanitizePlainText(domEditTarget.value);
+    const safeSec =
+      domEditTarget.secondaryValue !== undefined
+        ? sanitizePlainText(domEditTarget.secondaryValue)
+        : undefined;
+    domEditTarget.value = safeVal;
+    domEditTarget.secondaryValue = safeSec;
 
     if (domEditTarget.type === 'hero-stat' && typeof domEditTarget.index === 'number') {
       const statsList = [...(companySettings.heroStats || DEFAULT_COMPANY_SETTINGS.heroStats || [])];
@@ -1132,37 +1154,136 @@ export const LiveWebsiteEditorBar: React.FC<LiveWebsiteEditorBarProps> = ({
           {/* Drawer 2: Edit & Upload Images Across Website */}
           {activeDrawer === 'images' && (
             <div className="space-y-4">
-              {/* Logo Upload */}
-              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-12 bg-white rounded-xl flex items-center justify-center p-1 overflow-hidden">
+              {/* Logo Upload & Custom Color Name/Description */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
                     {companyLogo ? (
-                      <img src={companyLogo} alt="Logo" className="max-h-full max-w-full object-contain" />
+                      <div className="w-16 h-12 bg-white rounded-xl flex items-center justify-center p-1.5 overflow-hidden shrink-0">
+                        <img
+                          src={companyLogo}
+                          alt="Logo PT. KGS"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
                     ) : (
-                      <span className="font-black text-blue-700">KGS</span>
+                      <div
+                        style={{ backgroundColor: themeConfig.primaryColor }}
+                        className="w-11 h-11 text-white font-black text-base rounded-xl flex items-center justify-center shadow-sm shrink-0"
+                      >
+                        KGS
+                      </div>
+                    )}
+                    <div>
+                      <div
+                        style={{ color: companySettings.companyNameColor || '#ffffff' }}
+                        className="font-bold text-white"
+                      >
+                        {companySettings.legalName || 'PT. KREATIF GLOBAL SOLUSINDO'}
+                      </div>
+                      <div
+                        style={{ color: companySettings.sloganColor || '#60a5fa' }}
+                        className="text-[11px] font-semibold"
+                      >
+                        {companySettings.slogan || 'System Integrator, Security Solution & Internet Provider'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload / Ganti Logo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e =>
+                          handleImageFileToBase64(e, dataUrl => {
+                            onUpdateCompanyLogo(dataUrl);
+                            localStorage.setItem('kgs_custom_logo', dataUrl);
+                            showToast('Logo perusahaan berhasil diperbarui!');
+                          })
+                        }
+                        className="hidden"
+                      />
+                    </label>
+                    {companyLogo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onUpdateCompanyLogo('');
+                          localStorage.removeItem('kgs_custom_logo');
+                          showToast('Logo dikembalikan ke ikon KGS default!');
+                        }}
+                        className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl cursor-pointer flex items-center gap-1.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Reset Logo KGS</span>
+                      </button>
                     )}
                   </div>
-                  <div>
-                    <div className="font-bold text-white">Logo Utama Website (Header & Footer)</div>
-                    <div className="text-[11px] text-slate-400">Otomatis berubah di seluruh halaman & Admin CMS</div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] text-slate-400">
+                      Nama PT / Nama Website (Di Samping Logo) &amp; Warna Teks
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={companySettings.legalName}
+                        onChange={e =>
+                          onUpdateCompanySettings({
+                            ...companySettings,
+                            legalName: e.target.value
+                          })
+                        }
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-bold"
+                      />
+                      <input
+                        type="color"
+                        value={companySettings.companyNameColor || '#0f172a'}
+                        onChange={e =>
+                          onUpdateCompanySettings({
+                            ...companySettings,
+                            companyNameColor: e.target.value
+                          })
+                        }
+                        title="Pilih Warna Nama PT / Website"
+                        className="w-9 h-8 rounded border border-slate-700 cursor-pointer bg-slate-900 p-0.5 shrink-0"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] text-slate-400">
+                      Deskripsi di Bawah Logo &amp; Nama + Warna Teks
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={companySettings.slogan}
+                        onChange={e =>
+                          onUpdateCompanySettings({
+                            ...companySettings,
+                            slogan: e.target.value
+                          })
+                        }
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white"
+                      />
+                      <input
+                        type="color"
+                        value={companySettings.sloganColor || '#2563eb'}
+                        onChange={e =>
+                          onUpdateCompanySettings({
+                            ...companySettings,
+                            sloganColor: e.target.value
+                          })
+                        }
+                        title="Pilih Warna Deskripsi Bawah Logo"
+                        className="w-9 h-8 rounded border border-slate-700 cursor-pointer bg-slate-900 p-0.5 shrink-0"
+                      />
+                    </div>
                   </div>
                 </div>
-                <label className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl cursor-pointer flex items-center gap-1.5">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload / Ganti Logo</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e =>
-                      handleImageFileToBase64(e, dataUrl => {
-                        onUpdateCompanyLogo(dataUrl);
-                        localStorage.setItem('kgs_custom_logo', dataUrl);
-                        showToast('Logo perusahaan berhasil diperbarui!');
-                      })
-                    }
-                    className="hidden"
-                  />
-                </label>
               </div>
 
               {/* Project Photos Quick Upload */}

@@ -8,10 +8,51 @@ if ($slug === '') {
     exit;
 }
 
-ensure_default_pages($pdo);
-$stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = ? AND is_published = 1 LIMIT 1");
-$stmt->execute([$slug]);
-$page_item = $stmt->fetch();
+$core_redirects = [
+    'beranda'           => 'index.php',
+    'home'              => 'index.php',
+    'tentang'           => 'tentang.php',
+    'tentang-kami'      => 'tentang.php',
+    'layanan'           => 'layanan.php',
+    'product-service'   => 'layanan.php',
+    'harga'             => 'harga.php',
+    'paket'             => 'harga.php',
+    'faq'               => 'faq.php',
+    'portofolio'        => 'portofolio.php',
+    'proyek'            => 'portofolio.php',
+    'kontak'            => 'kontak.php',
+    'blog'              => 'blog.php',
+    'artikel'           => 'blog.php',
+    'artikel-edukasi'   => 'blog.php',
+    'kebijakan-privasi' => 'kebijakan-privasi.php',
+    'slideshow'         => 'slideshow.php',
+];
+if (isset($core_redirects[strtolower($slug)])) {
+    header('Location: ' . $core_redirects[strtolower($slug)]);
+    exit;
+}
+
+ensure_pages_complete($pdo);
+$page_item = get_page_by_slug($pdo, $slug);
+
+if (!$page_item && function_exists('get_default_system_pages')) {
+    foreach (get_default_system_pages() as $def) {
+        if (($def['slug'] ?? '') === $slug) {
+            $page_item = [
+                'id'               => 0,
+                'slug'             => $slug,
+                'title'            => $def['title'],
+                'summary'          => $def['summary'],
+                'content'          => $def['content'],
+                'featured_image'   => $def['featured_image'] ?? '',
+                'hero_image'       => $def['featured_image'] ?? '',
+                'meta_title'       => $def['meta_title'] ?? $def['title'],
+                'meta_description' => $def['meta_description'] ?? $def['summary'],
+            ];
+            break;
+        }
+    }
+}
 
 if (!$page_item) {
     http_response_code(404);

@@ -1,46 +1,95 @@
 <?php
+require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/database.php';
 
-ensure_pages_complete($pdo);
-
-$slug = trim($_GET['slug'] ?? 'profil-perusahaan');
-$stmt = $pdo->prepare("SELECT * FROM pages WHERE slug = ? AND is_published = 1");
-$stmt->execute([$slug]);
-$page = $stmt->fetch();
-
-if (!$page) {
-    header("Location: index.php");
+$slug = trim($_GET['slug'] ?? '');
+if ($slug === '') {
+    header('Location: index.php');
     exit;
 }
 
-$page_title = !empty($page['meta_title']) ? $page['meta_title'] : $page['title'];
-$meta_description = !empty($page['meta_description']) ? $page['meta_description'] : ($page['summary'] ?? '');
+$core_redirects = [
+    'beranda'           => 'index.php',
+    'home'              => 'index.php',
+    'tentang'           => 'tentang.php',
+    'tentang-kami'      => 'tentang.php',
+    'layanan'           => 'layanan.php',
+    'product-service'   => 'layanan.php',
+    'harga'             => 'harga.php',
+    'paket'             => 'harga.php',
+    'faq'               => 'faq.php',
+    'portofolio'        => 'portofolio.php',
+    'proyek'            => 'portofolio.php',
+    'kontak'            => 'kontak.php',
+    'blog'              => 'blog.php',
+    'artikel'           => 'blog.php',
+    'artikel-edukasi'   => 'blog.php',
+    'kebijakan-privasi' => 'kebijakan-privasi.php',
+    'slideshow'         => 'slideshow.php',
+];
+if (isset($core_redirects[strtolower($slug)])) {
+    header('Location: ' . $core_redirects[strtolower($slug)]);
+    exit;
+}
+
+ensure_pages_complete($pdo);
+$page_item = get_page_by_slug($pdo, $slug);
+
+if (!$page_item && function_exists('get_default_system_pages')) {
+    foreach (get_default_system_pages() as $def) {
+        if (($def['slug'] ?? '') === $slug) {
+            $page_item = [
+                'id'               => 0,
+                'slug'             => $slug,
+                'title'            => $def['title'],
+                'summary'          => $def['summary'],
+                'content'          => $def['content'],
+                'featured_image'   => $def['featured_image'] ?? '',
+                'hero_image'       => $def['featured_image'] ?? '',
+                'meta_title'       => $def['meta_title'] ?? $def['title'],
+                'meta_description' => $def['meta_description'] ?? $def['summary'],
+            ];
+            break;
+        }
+    }
+}
+
+if (!$page_item) {
+    http_response_code(404);
+    $page_title = 'Halaman Tidak Ditemukan';
+    require_once __DIR__ . '/includes/header.php';
+    echo '<section class="py-24 text-center max-w-xl mx-auto px-4"><h1 class="text-2xl font-extrabold text-slate-900 mb-2">404 — Halaman Tidak Ditemukan</h1><p class="text-xs text-slate-500 mb-6">Maaf, halaman yang Anda cari belum tersedia atau telah dipindahkan.</p><a href="index.php" class="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold">Kembali ke Beranda</a></section>';
+    require_once __DIR__ . '/includes/footer.php';
+    exit;
+}
+
+$page_title = !empty($page_item['meta_title']) ? $page_item['meta_title'] : $page_item['title'];
+$page_desc  = !empty($page_item['meta_description']) ? $page_item['meta_description'] : ($page_item['summary'] ?: substr(strip_tags((string)$page_item['content']), 0, 155));
+
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<div class="bg-gradient-to-b from-slate-900 to-blue-950 text-white py-14">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-3">
-        <span class="px-3 py-1 bg-blue-500/30 text-blue-300 text-xs font-bold rounded-full border border-blue-400/30 uppercase tracking-wider">
-            Informasi Resmi Perusahaan
-        </span>
-        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight"><?= e($page['title']) ?></h1>
-        <?php if (!empty($page['summary'])): ?>
-            <p class="text-slate-300 text-sm leading-relaxed"><?= e($page['summary']) ?></p>
+<section class="bg-slate-900 text-white py-14 border-b border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <span class="text-blue-400 font-bold text-xs uppercase tracking-widest" data-live-setting="page_badge"><?= e(get_setting($pdo, 'page_badge', 'Informasi Korporasi')) ?></span>
+        <h1 data-live-page-slug="<?= e($page_item['slug']) ?>" data-live-page-field="title" class="text-3xl sm:text-4xl font-extrabold mt-2"><?= e($page_item['title']) ?></h1>
+        <?php if (!empty($page_item['summary'])): ?>
+            <p data-live-page-slug="<?= e($page_item['slug']) ?>" data-live-page-field="summary" class="text-slate-300 text-sm sm:text-base mt-3 max-w-3xl leading-relaxed"><?= e($page_item['summary']) ?></p>
         <?php endif; ?>
     </div>
-</div>
+</section>
 
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <div class="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 shadow-xs space-y-6 text-slate-700 leading-relaxed text-sm">
-        <div class="prose max-w-none space-y-4">
-            <?= sanitize_rich_html($page['content']) ?>
-        </div>
+<section class="py-14 bg-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <?php $page_img = !empty($page_item['featured_image']) ? $page_item['featured_image'] : ($page_item['hero_image'] ?? ''); ?>
+        <?php if (!empty($page_img)): ?>
+            <div class="mb-8 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                <img src="<?= e($page_img) ?>" alt="<?= e($page_item['title']) ?>" data-live-img="page_hero:<?= (int)$page_item['id'] ?>" class="w-full h-72 sm:h-96 object-cover">
+            </div>
+        <?php endif; ?>
 
-        <div class="pt-8 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-            <span>Terakhir diperbarui: <?= !empty($page['updated_at']) ? date('d F Y', strtotime($page['updated_at'])) : date('d F Y') ?></span>
-            <a href="kontak.php#konsultasi" class="text-blue-600 font-bold hover:underline">Hubungi Tim Kami &rarr;</a>
-        </div>
+        <div data-live-page-slug="<?= e($page_item['slug']) ?>" data-live-page-field="content" class="prose prose-slate max-w-none text-sm text-slate-700 leading-relaxed space-y-4"><?= sanitize_rich_html($page_item['content']) ?></div>
     </div>
-</div>
+</section>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

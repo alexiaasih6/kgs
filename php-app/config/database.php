@@ -17,12 +17,44 @@ if (basename($_SERVER['PHP_SELF'] ?? '') === 'database.php') {
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/app.php';
 
-// Kredensial Database (Sesuaikan dengan cPanel / CyberPanel / Lokal Anda)
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'demo_isp1');
-define('DB_USER', 'demo_isp1');
-define('DB_PASS', 'UC%WqVedIKVCPfme');
-define('DB_CHARSET', 'utf8mb4');
+// 1. Prioritaskan file konfigurasi eksternal di luar public_html (jika tersedia di cPanel/CyberPanel)
+$external_db_config_file = dirname(__DIR__, 2) . '/kgs-db-config.php';
+if (is_file($external_db_config_file) && is_readable($external_db_config_file)) {
+    require_once $external_db_config_file;
+}
+
+// 2. Gunakan variabel environment server jika disetel, atau fallback ke konstanta default hosting
+if (!defined('DB_HOST')) {
+    if (getenv('KGS_DB_HOST')) {
+        define('DB_HOST', (string)getenv('KGS_DB_HOST'));
+    } else {
+        define('DB_HOST', 'localhost');
+    }
+}
+if (!defined('DB_NAME')) {
+    if (getenv('KGS_DB_NAME')) {
+        define('DB_NAME', (string)getenv('KGS_DB_NAME'));
+    } else {
+        define('DB_NAME', 'demo_isp1');
+    }
+}
+if (!defined('DB_USER')) {
+    if (getenv('KGS_DB_USER')) {
+        define('DB_USER', (string)getenv('KGS_DB_USER'));
+    } else {
+        define('DB_USER', 'demo_isp1');
+    }
+}
+if (!defined('DB_PASS')) {
+    if (getenv('KGS_DB_PASS') !== false) {
+        define('DB_PASS', (string)getenv('KGS_DB_PASS'));
+    } else {
+        define('DB_PASS', 'UC%WqVedIKVCPfme');
+    }
+}
+if (!defined('DB_CHARSET')) {
+    define('DB_CHARSET', 'utf8mb4');
+}
 
 $db_config = [
     'host'     => DB_HOST,

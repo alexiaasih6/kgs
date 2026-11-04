@@ -3,96 +3,50 @@ require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 
-// Jika sudah login, langsung ke dashboard
-if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+// Jika sesi admin sudah aktif dan valid, langsung ke dashboard
+if (is_admin_logged_in()) {
     header("Location: index.php");
     exit;
 }
 
-// Cek apakah tabel users ada dan sudah terisi
+// Cek apakah tabel users ada dan sudah memiliki akun (Fail-Closed jika terjadi gangguan DB)
+$user_count = 1;
 try {
-    $user_count = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+    $user_count = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
 } catch (Exception $e) {
-    // Fallback jika database lama
-    $user_count = $pdo->query("SELECT COUNT(*) FROM admins")->fetchColumn();
+    try {
+        $user_count = (int)$pdo->query("SELECT COUNT(*) FROM admins")->fetchColumn();
+    } catch (Exception $e2) {
+        $user_count = 1;
+    }
 }
 
-if ($user_count == 0) {
+if ($user_count === 0) {
     header("Location: register-admin.php");
     exit;
 }
 
 $error = '';
+$success = '';
 $msg = $_GET['msg'] ?? '';
 if ($msg === 'session_expired') {
     $error = 'Sesi Anda telah berakhir karena tidak aktif. Silakan masuk kembali.';
 } elseif ($msg === 'registered') {
-    $success = 'Akun administrator berhasil dibuat. Silakan login.';
-}
-
-// Pembatasan percobaan login (Rate Limiting via Session)
-if (!isset($_SESSION['login_attempts'])) {
-    $_SESSION['login_attempts'] = 0;
-    $_SESSION['last_attempt_time'] = time();
-}
-
-if (time() - $_SESSION['last_attempt_time'] > 900) {
-    $_SESSION['login_attempts'] = 0;
+    $success = 'Akun administrator berhasil diinisialisasi. Silakan masuk.';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
-    if ($_SESSION['login_attempts'] >= 5) {
-        $error = 'Terlalu banyak percobaan gagal. Akses terkunci selama 15 menit demi keamanan.';
+    $username = trim((string)($_POST['username'] ?? ''));
+    $password = (string)($_POST['password'] ?? '');
+
+    $auth_result = login_admin($pdo, $username, $password);
+    if (!empty($auth_result['success'])) {
+        header("Location: index.php");
+        exit;
     } else {
-        $username = trim($_POST['username'] ?? '');
-        $password = $_POST['password'] ?? '';
-
-        if (!empty($username) && !empty($password)) {
-            // Cek di tabel users
-            try {
-                $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = ? OR email = ?) AND status = 'active' LIMIT 1");
-                $stmt->execute([$username, $username]);
-                $user = $stmt->fetch();
-            } catch (Exception $e) {
-                $stmt = $pdo->prepare("SELECT * FROM admins WHERE username = ? LIMIT 1");
-                $stmt->execute([$username]);
-                $user = $stmt->fetch();
-                if ($user) $user['role'] = 'superadmin';
-            }
-
-            if ($user && password_verify($password, $user['password'])) {
-                session_regenerate_id(true);
-
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['admin_id'] = $user['id'];
-                $_SESSION['admin_username'] = $user['username'];
-                $_SESSION['admin_name'] = $user['name'];
-                $_SESSION['admin_role'] = $user['role'] ?? 'superadmin';
-                $_SESSION['last_activity'] = time();
-                $_SESSION['login_attempts'] = 0;
-
-                // Update last_login
-                try {
-                    $up = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                    $up->execute([$user['id']]);
-                } catch (Exception $ignore) {}
-
-                log_audit($pdo, 'LOGIN_SUCCESS', 'Administrator ' . $user['username'] . ' berhasil masuk.');
-
-                header("Location: index.php");
-                exit;
-            } else {
-                $_SESSION['login_attempts']++;
-                $_SESSION['last_attempt_time'] = time();
-                $sisa = 5 - $_SESSION['login_attempts'];
-                log_audit($pdo, 'LOGIN_FAILED', 'Percobaan login gagal untuk username: ' . $username);
-                $error = "Kredensial username atau kata sandi tidak cocok. (Sisa percobaan: {$sisa})";
-            }
-        } else {
-            $error = 'Silakan isi seluruh bidang login.';
-        }
+        $error = $auth_result['message'] ?? 'Kredensial yang Anda masukkan tidak valid.';
     }
 }
 
@@ -103,7 +57,8 @@ $company_name = get_setting($pdo, 'company_name') ?: 'PT. KREATIF GLOBAL SOLUSIN
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Admin CMS - <?= e($company_name) ?></title>
+    <meta name="robots" content="noindex, nofollow">
+    <title>Portal Manajemen Internal - <?= e($company_name) ?></title>
     <link rel="icon" href="../assets/images/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -116,7 +71,7 @@ $company_name = get_setting($pdo, 'company_name') ?: 'PT. KREATIF GLOBAL SOLUSIN
             <div class="inline-flex items-center justify-center w-12 h-12 bg-blue-600 text-white font-extrabold text-2xl rounded-xl shadow-lg">
                 KGS
             </div>
-            <h1 class="text-xl font-bold mt-3 text-white">Admin CMS Portal</h1>
+            <h1 class="text-xl font-bold mt-3 text-white">Portal Manajemen Internal</h1>
             <p class="text-xs text-slate-400"><?= e($company_name) ?></p>
         </div>
 
@@ -136,25 +91,24 @@ $company_name = get_setting($pdo, 'company_name') ?: 'PT. KREATIF GLOBAL SOLUSIN
             <?= csrf_field() ?>
 
             <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Username atau Email</label>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">ID Pengguna / Email</label>
                 <input type="text" name="username" required autocomplete="username"
                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition">
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Kata Sandi</label>
                 <input type="password" name="password" required autocomplete="current-password"
                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition">
             </div>
 
             <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-lg shadow-md transition cursor-pointer">
-                Masuk ke Panel Kontrol
+                Masuk ke Panel Kendali
             </button>
         </form>
 
-        <div class="pt-4 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-400">
-            <a href="../index.php" class="hover:text-white transition">&larr; Website Publik</a>
-            <span class="text-[11px] font-mono">Bcrypt & RBAC Guard</span>
+        <div class="pt-4 border-t border-slate-700/60 flex items-center justify-center text-xs text-slate-400">
+            <a href="../index.php" class="hover:text-white transition">&larr; Kembali ke Website Utama</a>
         </div>
     </div>
 </body>

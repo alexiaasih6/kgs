@@ -53,9 +53,9 @@ require_once __DIR__ . '/includes/header.php';
             </p>
             <ul class="space-y-1 text-xs font-semibold text-slate-800 pt-2">
                 <li>• Alamat: <span data-live-setting="address_palembang"><?= e(get_setting($pdo, 'address_palembang', 'Jln. Mayor Ruslan No.175C Kel.9 Ilir Palembang 30113')) ?></span></li>
-                <li>• Telepon: <span data-live-setting="phone_palembang"><?= e(get_setting($pdo, 'phone_palembang', '0711-316088 (Hunting)')) ?></span></li>
+                <li>• Telepon: <span data-live-setting="phone_palembang"><?= e(get_setting($pdo, 'phone_palembang', '0711-316088')) ?></span></li>
                 <li>• WhatsApp: <span data-live-setting="whatsapp"><?= e(get_setting($pdo, 'whatsapp', '0811-782119')) ?></span></li>
-                <li>• Email: <span data-live-setting="email"><?= e(get_setting($pdo, 'email', 'info@kgs.net.id')) ?></span></li>
+                <li>• Email: <span data-live-setting="email"><?= e(get_setting($pdo, 'email', 'info@creative.co.id')) ?></span></li>
             </ul>
         </div>
     </div>

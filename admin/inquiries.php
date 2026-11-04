@@ -11,12 +11,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = (int)($_POST['id'] ?? 0);
 
     if ($action === 'status' && $id > 0) {
-        $status = $_POST['status'] ?? 'Baru';
+        $raw_status = (string)($_POST['status'] ?? 'Baru');
+        $status = in_array($raw_status, ['Baru', 'Diproses', 'Selesai'], true) ? $raw_status : 'Baru';
         $stmt = $pdo->prepare("UPDATE inquiries SET status = ? WHERE id = ?");
         $stmt->execute([$status, $id]);
         log_audit($pdo, 'Update Status Lead', "Mengubah status permintaan penawaran ID $id menjadi: $status");
         $msg = 'Status tindak lanjut penawaran berhasil diubah.';
     } elseif ($action === 'delete' && $id > 0) {
+        $pdo->prepare("DELETE FROM lead_notes WHERE inquiry_id = ?")->execute([$id]);
         $stmt = $pdo->prepare("DELETE FROM inquiries WHERE id = ?");
         $stmt->execute([$id]);
         log_audit($pdo, 'Hapus Lead', "Menghapus permintaan penawaran ID: $id");

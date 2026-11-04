@@ -19,9 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add' || $action === 'edit') {
         $id         = (int)($_POST['id'] ?? 0);
-        $category   = trim($_POST['category'] ?? 'Informasi Umum');
-        $question   = trim($_POST['question'] ?? '');
-        $answer     = trim($_POST['answer'] ?? '');
+        $category   = clean_plain_text((string)($_POST['category'] ?? 'Informasi Umum'), 100);
+        $question   = clean_plain_text((string)($_POST['question'] ?? ''), 500);
+        $answer     = clean_plain_text((string)($_POST['answer'] ?? ''), 4000);
         $sort_order = (int)($_POST['sort_order'] ?? 0);
         $is_active  = isset($_POST['is_active']) ? 1 : 0;
 
@@ -31,11 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'add') {
                 $stmt = $pdo->prepare("INSERT INTO faqs (category, question, answer, sort_order, is_active) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute([$category, $question, $answer, $sort_order, $is_active]);
+                invalidate_live_preview_json('faqs');
                 log_audit($pdo, 'Tambah FAQ', "Menambahkan FAQ: $question");
                 $msg = 'Item FAQ baru berhasil ditambahkan!';
             } else {
                 $stmt = $pdo->prepare("UPDATE faqs SET category = ?, question = ?, answer = ?, sort_order = ?, is_active = ? WHERE id = ?");
                 $stmt->execute([$category, $question, $answer, $sort_order, $is_active, $id]);
+                invalidate_live_preview_json('faqs');
                 log_audit($pdo, 'Edit FAQ', "Memperbarui FAQ ID $id: $question");
                 $msg = 'Item FAQ berhasil diperbarui!';
                 $edit_data = null;
@@ -47,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $stmt = $pdo->prepare("DELETE FROM faqs WHERE id = ?");
             $stmt->execute([$id]);
+            invalidate_live_preview_json('faqs');
             log_audit($pdo, 'Hapus FAQ', "Menghapus FAQ ID: $id");
             $msg = 'Item FAQ berhasil dihapus.';
         }

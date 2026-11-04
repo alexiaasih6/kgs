@@ -30,6 +30,18 @@ async function buildZip() {
   const zip = new JSZip();
   addDirectoryToZip(zip, phpAppDir, phpAppDir);
 
+  // Also include the official KGS logo PNG asset in the hosting ZIP and workspace root
+  const officialLogoSrc = path.join(__dirname, '../public/assets/aistudio/image_8b7e60bd.png');
+  if (fs.existsSync(officialLogoSrc)) {
+    const logoContent = fs.readFileSync(officialLogoSrc);
+    zip.file('assets/aistudio/image_8b7e60bd.png', logoContent);
+    console.log('+ Added to ZIP: assets/aistudio/image_8b7e60bd.png');
+
+    const rootLogoDest = path.join(__dirname, '../assets/aistudio/image_8b7e60bd.png');
+    fs.mkdirSync(path.dirname(rootLogoDest), { recursive: true });
+    fs.writeFileSync(rootLogoDest, logoContent);
+  }
+
   const publicDir = path.dirname(publicZipPath1);
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });

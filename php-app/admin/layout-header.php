@@ -128,6 +128,10 @@ $favicon_path = get_setting($pdo, 'favicon', 'assets/images/favicon.svg');
                         <span>🧩 Bagian Halaman & Statistik</span>
                         <span class="px-1.5 py-0.5 rounded text-[9px] bg-emerald-600 text-white font-bold">Lengkap</span>
                     </a>
+                    <a href="slideshow.php" class="flex items-center justify-between px-3 py-2 rounded-lg transition <?= $current_script === 'slideshow.php' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' ?>">
+                        <span>🖼️ Slide Show / Galeri</span>
+                        <span class="px-1.5 py-0.5 rounded text-[9px] bg-blue-600 text-white font-bold">Multi-Foto</span>
+                    </a>
                     <a href="layanan.php" class="flex items-center justify-between px-3 py-2 rounded-lg transition <?= in_array($current_script, ['layanan.php', 'services.php', 'tambah-layanan.php', 'edit-layanan.php']) ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' ?>">
                         <span>📦 Kelola Layanan</span>
                     </a>

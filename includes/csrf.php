@@ -1,5 +1,17 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) {
+    $is_https = (
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+        (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) ||
+        (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+    );
+    ini_set('session.use_strict_mode', 1);
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.use_only_cookies', 1);
+    ini_set('session.cookie_samesite', 'Lax');
+    if ($is_https) {
+        ini_set('session.cookie_secure', 1);
+    }
     session_start();
 }
 
@@ -17,6 +29,18 @@ function csrf_field(): string {
 
 function verify_csrf(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Verifikasi Origin header jika dikirim oleh browser untuk mencegah Cross-Origin POST
+        if (!empty($_SERVER['HTTP_ORIGIN']) && !empty($_SERVER['HTTP_HOST'])) {
+            $origin_host = parse_url((string)$_SERVER['HTTP_ORIGIN'], PHP_URL_HOST);
+            $current_host = explode(':', (string)$_SERVER['HTTP_HOST'])[0];
+            if ($origin_host && $current_host && strcasecmp($origin_host, $current_host) !== 0) {
+                if (!headers_sent()) {
+                    http_response_code(403);
+                }
+                die('Validasi Keamanan Gagal (Cross-Origin Request Ditolak).');
+            }
+        }
+
         $token = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
         $session_token = $_SESSION['csrf_token'] ?? '';
         if (empty($token) || empty($session_token) || !hash_equals((string)$session_token, (string)$token)) {

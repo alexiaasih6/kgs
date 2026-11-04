@@ -15,22 +15,30 @@ if (!$inquiry) {
 
 $msg = '';
 
-// Tambah catatan tindak lanjut atau perbarui status
+// Tambah catatan tindak lanjut, hapus catatan, atau perbarui status
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add_note') {
-        $note = trim($_POST['note'] ?? '');
+        $note = clean_plain_text((string)($_POST['note'] ?? ''), 2000);
         if (!empty($note)) {
             $stmt_note = $pdo->prepare("INSERT INTO lead_notes (inquiry_id, note, created_at) VALUES (?, ?, NOW())");
             $stmt_note->execute([$id, $note]);
             log_audit($pdo, 'Catatan Leads', "Menambah catatan tindak lanjut untuk lead #$id: " . substr($note, 0, 50));
             $msg = 'Catatan tindak lanjut berhasil ditambahkan.';
         }
+    } elseif ($action === 'delete_note') {
+        $note_id = (int)($_POST['note_id'] ?? 0);
+        if ($note_id > 0) {
+            $pdo->prepare("DELETE FROM lead_notes WHERE id = ? AND inquiry_id = ?")->execute([$note_id, $id]);
+            log_audit($pdo, 'Hapus Catatan Leads', "Menghapus catatan #$note_id pada lead #$id");
+            $msg = 'Catatan tindak lanjut berhasil dihapus.';
+        }
     } elseif ($action === 'update_status') {
-        $status = $_POST['status'] ?? 'Baru';
+        $raw_status = (string)($_POST['status'] ?? 'Baru');
+        $status = in_array($raw_status, ['Baru', 'Diproses', 'Selesai'], true) ? $raw_status : 'Baru';
         $stmt_status = $pdo->prepare("UPDATE inquiries SET status = ? WHERE id = ?");
         $stmt_status->execute([$status, $id]);
         $inquiry['status'] = $status;
@@ -61,7 +69,7 @@ $email_link = "mailto:" . urlencode($inquiry['email']) . "?subject=" . $email_su
 <div class="max-w-4xl mx-auto space-y-6">
     <div class="flex items-center justify-between border-b pb-4">
         <div>
-            <h1 class="text-xl font-bold text-slate-900">Detail Permintaan Penawaran #<?= $inquiry['id'] ?></h1>
+            <h1 class="text-xl font-bold text-slate-900">Detail Permintaan Penawaran #<?= (int)$inquiry['id'] ?></h1>
             <p class="text-xs text-slate-500">Masuk pada: <?= date('d F Y, H:i', strtotime($inquiry['created_at'])) ?> WIB</p>
         </div>
         <a href="inquiries.php" class="text-xs text-slate-500 hover:text-slate-800">&larr; Kembali ke Daftar Leads</a>
@@ -99,11 +107,11 @@ $email_link = "mailto:" . urlencode($inquiry['email']) . "?subject=" . $email_su
 
         <!-- Quick Communication Action Buttons -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <a href="<?= $wa_link ?>" target="_blank" class="flex items-center justify-center gap-2.5 p-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition">
+            <a href="<?= e($wa_link) ?>" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2.5 p-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition">
                 <span>💬 Balas Langsung via WhatsApp</span>
                 <span class="font-normal text-emerald-100">(<?= e($inquiry['phone']) ?>)</span>
             </a>
-            <a href="<?= $email_link ?>" class="flex items-center justify-center gap-2.5 p-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition">
+            <a href="<?= e($email_link) ?>" class="flex items-center justify-center gap-2.5 p-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition">
                 <span>📧 Kirim Penawaran via Email</span>
                 <span class="font-normal text-blue-100">(<?= e($inquiry['email']) ?>)</span>
             </a>
@@ -132,7 +140,7 @@ $email_link = "mailto:" . urlencode($inquiry['email']) . "?subject=" . $email_su
             <input type="hidden" name="action" value="add_note">
             <label class="block text-xs font-semibold text-slate-700">Tambah Catatan Tindak Lanjut Baru:</label>
             <textarea name="note" rows="3" required placeholder="Contoh: Sudah ditelepon pada 17 Okt pk 10:00, PIC meminta penawaran dikirim ke email finance@... dengan breakdown biaya instalasi fiber optic 500m." class="w-full text-xs p-3 border rounded-xl focus:ring-2 focus:ring-blue-500"></textarea>
-            <button type="submit" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm">
+            <button type="submit" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer">
                 + Simpan Catatan Tindak Lanjut
             </button>
         </form>
@@ -147,7 +155,15 @@ $email_link = "mailto:" . urlencode($inquiry['email']) . "?subject=" . $email_su
                 <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
                     <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono">
                         <span class="font-semibold text-slate-600">Catatan Internal</span>
-                        <span><?= date('d M Y H:i', strtotime($n['created_at'])) ?> WIB</span>
+                        <div class="flex items-center gap-3">
+                            <span><?= date('d M Y H:i', strtotime($n['created_at'])) ?> WIB</span>
+                            <form method="POST" onsubmit="return confirm('Hapus catatan ini?');" class="inline">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="delete_note">
+                                <input type="hidden" name="note_id" value="<?= (int)$n['id'] ?>">
+                                <button type="submit" class="text-rose-500 hover:text-rose-700 font-sans font-bold text-[10px] cursor-pointer">Hapus</button>
+                            </form>
+                        </div>
                     </div>
                     <p class="text-slate-800 whitespace-pre-line"><?= e($n['note']) ?></p>
                 </div>

@@ -1,0 +1,480 @@
+# MASTER PROMPT GOOGLE AI STUDIO
+## AUDIT TOTAL, PERBAIKAN BUG, SINKRONISASI ADMIN CMS, DAN PENGUATAN KEAMANAN WEBSITE
+
+Bertindaklah sebagai **Senior Full-Stack PHP Developer, MySQL Database Architect, Application Security Engineer, QA Engineer, dan Software Auditor**.
+
+Saya ingin kamu melakukan **AUDIT MENYELURUH terhadap seluruh codebase aplikasi yang sedang terbuka di Google AI Studio**, kemudian memperbaiki seluruh masalah yang ditemukan secara langsung pada file proyek.
+
+### 1. TUJUAN UTAMA
+
+Pastikan website dan Admin CMS PT. Kreatif Global Solusindo (KGS) berfungsi secara konsisten, aman, stabil, dan siap digunakan di lingkungan produksi.
+
+Teknologi utama:
+- PHP Native.
+- MySQL/MariaDB.
+- HTML5, CSS3, dan JavaScript.
+- PDO untuk koneksi database.
+- Kompatibel dengan localhost, CyberPanel, dan cPanel.
+
+**Jangan hanya memberikan analisis, contoh kode, atau rekomendasi. Periksa file yang sebenarnya, lakukan perubahan kode yang diperlukan, dan verifikasi hasilnya.**
+
+Pertahankan desain, identitas perusahaan, konten yang valid, fitur yang sudah berjalan, serta struktur proyek yang masih relevan. Jangan melakukan redesign total tanpa kebutuhan teknis yang jelas.
+
+### 2. AUDIT SINKRONISASI ADMIN CMS DENGAN WEBSITE PUBLIK
+
+Masalah prioritas tertinggi adalah ketika konten diedit melalui Admin CMS, perubahan terkadang tidak tersimpan atau tidak tampil pada halaman website publik.
+
+Periksa dan perbaiki seluruh alur CRUD:
+
+1. Create — data baru benar-benar tersimpan di database.
+2. Read — website publik membaca data terbaru dari sumber database yang benar.
+3. Update — perubahan data tersimpan dan tampil pada halaman publik yang sesuai.
+4. Delete — penghapusan diproses dengan benar dan tidak meninggalkan data yang menyebabkan error.
+
+Audit seluruh modul, termasuk:
+
+- Pengaturan profil dan informasi perusahaan.
+- Logo website dan favicon.
+- Alamat, nomor telepon, email, dan kontak WhatsApp.
+- Halaman Beranda.
+- Tentang Kami.
+- Layanan.
+- Harga dan paket.
+- FAQ.
+- Portofolio.
+- Blog dan artikel.
+- Kategori artikel.
+- Klien.
+- Leads atau pesan pengunjung.
+- Coverage area.
+- Profil perusahaan.
+- Visi, misi, dan budaya perusahaan.
+- Kebijakan privasi.
+- Footer, menu navigasi, dan pengaturan SEO.
+
+Sesuaikan daftar di atas dengan modul yang benar-benar tersedia dalam proyek.
+
+Untuk setiap modul, pastikan:
+
+- Form edit mengambil data berdasarkan ID atau slug yang benar.
+- Validasi input dilakukan sebelum penyimpanan.
+- Query INSERT, UPDATE, dan DELETE menggunakan tabel serta kolom yang benar.
+- Data yang disimpan menggunakan koneksi database yang konsisten.
+- Halaman publik membaca data dari tabel dan field yang sama.
+- Tidak ada data penting yang masih ditulis secara hardcode ketika seharusnya dikendalikan CMS.
+- Slug, URL, relasi kategori, status publikasi, dan ID tidak menyebabkan data salah sasaran.
+- Pesan sukses hanya ditampilkan setelah operasi database berhasil.
+- Kegagalan penyimpanan menampilkan pesan yang jelas tanpa membocorkan detail sensitif.
+- Data yang tidak aktif atau belum dipublikasikan tidak tampil secara tidak semestinya.
+- Perubahan gambar, logo, dan file upload tampil sesuai data terbaru.
+- Cache atau mekanisme rendering tidak menyebabkan konten lama terus ditampilkan.
+
+Telusuri alur secara utuh:
+
+**Form Admin → Validasi → PHP Controller/Handler → Database → Query Halaman Publik → Tampilan Website.**
+
+Jangan memperbaiki hanya gejala di antarmuka. Temukan dan perbaiki akar masalahnya.
+
+### 3. AUDIT STRUKTUR DATABASE
+
+Periksa file SQL, konfigurasi database, skema tabel, foreign key, indeks, serta relasi antartabel.
+
+Pastikan:
+
+- Nama tabel dan kolom konsisten dengan kode PHP.
+- Tidak ada query yang mengacu pada kolom yang tidak tersedia.
+- Tipe data dan panjang kolom sesuai kebutuhan.
+- Relasi data tidak merusak data lain.
+- Operasi yang melibatkan beberapa perubahan penting menggunakan transaksi database bila diperlukan.
+- Kegagalan transaksi ditangani dengan rollback.
+- Tidak ada data produksi yang dihapus atau diubah secara massal tanpa alasan dan otorisasi.
+- Instalasi baru maupun pembaruan skema dapat dilakukan tanpa merusak instalasi yang sudah berjalan.
+
+Jangan mengganti kredensial, menghapus tabel, atau melakukan migrasi destruktif tanpa memastikan kebutuhan dan dampaknya.
+
+### 4. PENGUATAN KEAMANAN ADMIN CMS
+
+Lakukan audit keamanan berdasarkan risiko aplikasi web, termasuk OWASP Top 10 yang relevan.
+
+**A. SQL Injection**
+- Gunakan PDO prepared statements untuk seluruh query yang menerima input.
+- Hindari menggabungkan input pengguna langsung ke dalam SQL.
+- Validasi nama kolom, urutan pengurutan, dan parameter dinamis menggunakan allowlist.
+
+**B. XSS dan HTML Injection**
+- Lakukan output encoding menggunakan `htmlspecialchars()` dengan konfigurasi yang sesuai untuk konteks HTML.
+- Jangan menampilkan input pengguna secara mentah.
+- Validasi dan sanitasi konten HTML jika editor rich text memang diperlukan.
+- Gunakan allowlist tag, atribut, dan protokol URL yang diperbolehkan.
+- Tolak script, event handler seperti `onerror` dan `onclick`, URL berbahaya, serta payload XSS.
+- Jangan menganggap sanitasi input saja cukup untuk mencegah XSS.
+- Pastikan data blog, judul, deskripsi, FAQ, formulir, dan pengaturan website aman saat ditampilkan.
+
+**C. CSRF**
+- Terapkan token CSRF pada seluruh operasi yang mengubah data.
+- Verifikasi token di server.
+- Jangan menggunakan tautan GET untuk operasi penghapusan atau perubahan data.
+
+**D. Autentikasi dan Otorisasi**
+- Gunakan `password_hash()` dan `password_verify()`.
+- Terapkan session regeneration setelah login.
+- Lindungi seluruh halaman dan endpoint admin.
+- Periksa hak akses di sisi server pada setiap operasi.
+- Terapkan logout yang benar dan invalidasi sesi.
+- Tambahkan pembatasan percobaan login dan jeda bertahap untuk mengurangi brute-force.
+- Pastikan akun tanpa hak administrator tidak dapat mengakses fungsi sensitif.
+- Hindari pendaftaran admin publik tanpa mekanisme otorisasi yang aman.
+
+**E. Session dan Konfigurasi**
+- Aktifkan pengaturan cookie sesi yang aman, termasuk HttpOnly, SameSite, dan Secure saat HTTPS digunakan.
+- Jangan menyimpan password database, secret key, atau kredensial sensitif di source code publik.
+- Lindungi file konfigurasi dan file environment.
+- Nonaktifkan error detail untuk pengunjung produksi.
+- Catat error secara aman ke log yang tidak dapat diakses publik.
+- Jangan menampilkan stack trace, query SQL, password, token, atau informasi server kepada pengunjung.
+
+### 5. PERLINDUNGAN FORMULIR DARI SPAM
+
+Audit seluruh formulir publik, termasuk kontak, leads, permintaan penawaran, dan formulir lain yang tersedia.
+
+Terapkan perlindungan berlapis sesuai kebutuhan:
+
+- Validasi server-side untuk setiap field.
+- Batas panjang input dan format data.
+- Rate limiting berdasarkan mekanisme yang sesuai dengan hosting.
+- Honeypot untuk bot.
+- CSRF protection.
+- Pembatasan ukuran request dan file upload.
+- CAPTCHA hanya jika memang diperlukan dan dapat dikonfigurasi.
+- Pesan validasi yang jelas.
+- Pencegahan penyimpanan pesan berulang secara berlebihan.
+- Logging aktivitas mencurigakan tanpa menyimpan data sensitif yang tidak diperlukan.
+
+Jangan memblokir pengunjung normal secara berlebihan. Pastikan perlindungan tetap kompatibel dengan shared hosting cPanel dan CyberPanel.
+
+### 6. KEAMANAN FILE UPLOAD
+
+Audit fitur upload logo, gambar artikel, foto portofolio, dan file lainnya.
+
+Pastikan:
+
+- MIME type dan ekstensi diverifikasi di server.
+- Ukuran file dibatasi.
+- Nama file dibuat secara aman dan unik.
+- File berbahaya ditolak.
+- File yang diunggah tidak dapat dieksekusi sebagai PHP.
+- File disimpan di lokasi yang sesuai dan tidak dapat digunakan untuk menjalankan script.
+- Nama file tidak memungkinkan path traversal.
+- Validasi tetap berjalan meskipun pemeriksaan JavaScript dilewati.
+- Penggantian gambar lama tidak menyebabkan broken image atau menghapus file yang masih digunakan.
+
+Jangan mengandalkan ekstensi file saja sebagai pemeriksaan keamanan.
+
+### 7. KEAMANAN HEADER DAN KONFIGURASI SERVER
+
+Evaluasi penerapan header keamanan yang sesuai, seperti:
+
+- Content-Security-Policy.
+- X-Content-Type-Options.
+- Referrer-Policy.
+- Proteksi framing menggunakan CSP `frame-ancestors` atau kebijakan yang sesuai.
+- HTTPS dan konfigurasi cookie aman.
+
+Periksa juga directory listing, akses langsung ke file konfigurasi, file backup, file SQL, log, dan file sementara.
+
+Jangan menerapkan CSP atau aturan server secara sembarangan hingga merusak CSS, JavaScript, upload, atau fitur website. Sediakan konfigurasi yang kompatibel dengan Apache/LiteSpeed dan lingkungan hosting yang digunakan.
+
+### 8. AUDIT FRONTEND DAN PENGALAMAN ADMIN
+
+Periksa setiap halaman publik dan Admin CMS.
+
+Pastikan:
+
+- Tidak ada halaman kosong atau HTTP 500.
+- Tidak ada error PHP, JavaScript, atau query database yang belum ditangani.
+- Tidak ada tautan rusak atau gambar yang gagal dimuat.
+- Navigasi dan footer konsisten.
+- Form edit menampilkan data yang benar.
+- Tombol simpan, edit, hapus, dan status publikasi berfungsi.
+- Pesan sukses dan gagal sesuai hasil operasi sebenarnya.
+- Tampilan responsif pada desktop, tablet, dan ponsel.
+- Fitur yang sudah berjalan tidak rusak setelah perbaikan.
+
+Jangan menghilangkan fitur hanya untuk menyembunyikan bug.
+
+### 9. PENGUJIAN WAJIB
+
+Setelah memperbaiki kode, jalankan pengujian yang memungkinkan dilakukan di lingkungan proyek.
+
+Buat pengujian untuk skenario berikut:
+
+1. Login Admin dengan kredensial valid dan tidak valid.
+2. Mengedit profil perusahaan lalu memeriksa halaman publik.
+3. Mengubah logo dan memastikan gambar terbaru tampil.
+4. Menambah, mengedit, dan menghapus layanan.
+5. Menambah dan mengedit artikel beserta status publikasinya.
+6. Mengubah harga atau paket lalu memeriksa hasilnya di halaman publik.
+7. Mengubah FAQ, kontak, footer, dan SEO.
+8. Mengirim formulir kontak dan memeriksa data leads.
+9. Mengirim input yang mengandung karakter HTML dan payload XSS.
+10. Menguji input SQL injection pada field yang relevan.
+11. Mengirim request tanpa token CSRF.
+12. Mengakses halaman admin tanpa login.
+13. Mencoba mengunggah file dengan ekstensi atau MIME berbahaya.
+14. Menguji input kosong, terlalu panjang, format salah, dan ID yang tidak tersedia.
+15. Menguji kegagalan database dan memastikan sistem menampilkan error secara aman.
+
+Untuk setiap pengujian CRUD, gunakan alur:
+
+**Edit data → Simpan → Baca kembali dari database → Muat ulang halaman publik → Verifikasi perubahan.**
+
+Gunakan database pengujian atau data dummy jika memungkinkan. Jangan melakukan pengujian destruktif pada data produksi.
+
+Jangan menyatakan pengujian berhasil jika hanya memeriksa kode tanpa benar-benar menjalankan pengujiannya.
+
+### 10. KOMPATIBILITAS DEPLOYMENT
+
+Pastikan aplikasi tetap dapat dipasang pada:
+
+- XAMPP atau localhost.
+- cPanel.
+- CyberPanel.
+- PHP dan MySQL/MariaDB yang memenuhi kebutuhan versi aplikasi.
+
+Periksa path relatif, URL dasar, konfigurasi database, rewrite rules, permission direktori, upload, dan session.
+
+Jangan mengasumsikan akses root server atau layanan tambahan yang tidak tersedia. Jika suatu perlindungan memerlukan konfigurasi hosting, dokumentasikan langkah pemasangannya dan sediakan fallback yang aman bila memungkinkan.
+
+### 11. ATURAN PENGERJAAN
+
+- Periksa seluruh codebase sebelum menentukan perubahan.
+- Prioritaskan bug yang menyebabkan kehilangan data, perubahan CMS tidak tampil, akses tidak sah, XSS, dan SQL injection.
+- Perbaiki akar masalah, bukan hanya tampilan pesan.
+- Pertahankan data dan fitur yang valid.
+- Hindari duplikasi fungsi, query, dan konfigurasi.
+- Gunakan kode PHP yang terstruktur dan mudah dipelihara.
+- Jangan menambahkan dependensi yang tidak diperlukan.
+- Jangan membuat data keberhasilan palsu atau simulasi yang seolah-olah tersimpan.
+- Jangan mengganti fitur nyata dengan tombol dekoratif.
+- Jangan menghapus fungsi lama tanpa memastikan penggantinya berfungsi.
+- Terapkan perubahan langsung pada file proyek yang relevan.
+- Periksa kembali seluruh file yang terdampak setelah perubahan.
+
+Jika menemukan masalah yang tidak dapat diperbaiki tanpa kredensial, akses server, atau informasi yang belum tersedia, jangan mengarang hasil. Jelaskan hambatan dan langkah verifikasi yang masih diperlukan.
+
+### 12. LAPORAN AKHIR
+
+Setelah audit dan perbaikan, tampilkan laporan terstruktur berisi:
+
+**A. Temuan Audit**
+- Nama file dan modul bermasalah.
+- Akar penyebab.
+- Dampak terhadap website atau keamanan.
+- Tingkat risiko: kritis, tinggi, sedang, atau rendah.
+
+**B. Perbaikan**
+- File yang diubah.
+- Ringkasan perubahan kode.
+- Bug yang berhasil diperbaiki.
+- Perlindungan keamanan yang ditambahkan.
+
+**C. Hasil Pengujian**
+- Nama skenario pengujian.
+- Langkah yang benar-benar dijalankan.
+- Hasil aktual.
+- Status: lulus, gagal, atau belum diuji.
+- Bukti atau log yang relevan tanpa data rahasia.
+
+**D. Pekerjaan yang Masih Tersisa**
+- Masalah yang belum terselesaikan.
+- Ketergantungan pada konfigurasi server.
+- Pengujian yang membutuhkan akses hosting atau database.
+- Risiko yang masih perlu ditangani.
+
+**E. Status Kesiapan**
+Berikan penilaian objektif apakah aplikasi:
+- Belum layak digunakan.
+- Layak untuk pengujian staging.
+- Siap untuk UAT.
+- Siap produksi setelah seluruh persyaratan dan pengujian wajib terpenuhi.
+
+Jangan memberikan status “aman 100%” atau “bebas bug”. Semua klaim harus berdasarkan hasil pemeriksaan dan pengujian yang benar-benar dilakukan.
+
+## PERINTAH EKSEKUSI
+
+**MULAI SEKARANG. Audit codebase yang tersedia, petakan alur Admin CMS dan website publik, identifikasi akar masalah, perbaiki file yang relevan, lalu jalankan pengujian dan tampilkan laporan hasilnya.**
+
+Jangan berhenti pada rencana kerja atau daftar rekomendasi. Kerjakan perbaikan secara bertahap, prioritaskan risiko kritis, dan verifikasi setiap perubahan sebelum melanjutkan ke modul berikutnya.
+# 13. WAJIB: SINKRONISASI CODEBASE, PUBLIC_HTML, DATABASE, DAN HASIL PREVIEW AI STUDIO
+
+Bagian ini adalah persyaratan WAJIB dan tidak boleh diabaikan.
+
+Saya ingin hasil akhir aplikasi menjadi website PHP Native + MySQL yang benar-benar berfungsi secara mandiri di hosting cPanel, CyberPanel, maupun localhost. Website hasil deployment harus memiliki fungsi, konten, desain, dan perilaku yang konsisten dengan hasil preview aplikasi di Google AI Studio.
+
+## A. SATU SUMBER KODE YANG KONSISTEN
+
+Pastikan seluruh komponen berikut berasal dari implementasi aplikasi yang sama dan tidak memiliki perbedaan logika:
+
+1. Source code aplikasi di proyek Google AI Studio.
+2. Hasil build atau paket deployment yang dihasilkan.
+3. File PHP, HTML, CSS, JavaScript, gambar, font, dan aset lainnya yang diunggah ke `public_html`.
+4. Struktur database MySQL/MariaDB beserta data konfigurasi aplikasi.
+5. Halaman website publik yang diakses pengunjung.
+6. Admin CMS yang digunakan untuk mengelola website.
+
+Jangan membuat versi website alternatif, halaman statis sementara, mockup, atau implementasi terpisah yang hanya menyerupai preview.
+
+**Kode yang dihasilkan harus menjadi implementasi nyata dari aplikasi yang sedang dikembangkan, bukan sekadar tiruan visual.**
+
+Jika terdapat perbedaan antara source code, paket hosting, dan hasil preview, identifikasi penyebabnya dan perbaiki sebelum menyatakan proyek selesai.
+
+## B. WEBSITE HARUS BERJALAN MANDIRI DI PUBLIC_HTML
+
+Pastikan seluruh fitur inti berjalan setelah paket website diunggah ke direktori `public_html` pada hosting.
+
+Ketentuan:
+
+- PHP menjadi backend utama untuk pemrosesan data.
+- MySQL/MariaDB menjadi database utama untuk data dinamis.
+- HTML, CSS, dan JavaScript digunakan untuk tampilan serta interaksi frontend.
+- Seluruh proses CRUD dilakukan melalui backend PHP dan database yang telah dikonfigurasi.
+- Formulir, login, session, upload gambar, blog, layanan, harga, kontak, pengaturan profil, dan Admin CMS harus berfungsi tanpa bergantung pada runtime AI Studio.
+- Seluruh file yang diperlukan untuk menjalankan aplikasi harus disertakan dalam paket deployment.
+- Pastikan `index.php` dan halaman lain menggunakan path serta URL yang benar setelah dipasang di domain.
+- Jangan mengasumsikan bahwa struktur direktori lokal AI Studio tersedia di hosting.
+- Jangan menggunakan path lokal, endpoint development, atau alamat localhost yang tertanam dalam kode produksi.
+- Pastikan tidak ada file penting yang tertinggal dari paket deployment.
+- Pastikan file konfigurasi, file SQL, log, backup, dan file internal tidak dapat diakses publik secara tidak semestinya.
+
+Buat paket deployment lengkap yang dapat dipasang dengan mengunggah file ke `public_html`, mengimpor database, mengatur konfigurasi koneksi, lalu menjalankan proses instalasi yang terdokumentasi.
+
+Jika aplikasi memerlukan direktori penyimpanan atau konfigurasi tambahan di luar `public_html`, jelaskan kebutuhan tersebut dan gunakan lokasi yang aman bila hosting mendukungnya.
+
+## C. DILARANG BERGANTUNG PADA API AI STUDIO ATAU BACKEND EKSTERNAL UNTUK FITUR INTI
+
+Lakukan audit menyeluruh terhadap seluruh source code untuk menemukan dependensi eksternal.
+
+**Dilarang menjadikan Google AI Studio, Gemini API, API model AI, server development, backend sementara, atau layanan pihak ketiga sebagai ketergantungan wajib untuk menjalankan website.**
+
+Periksa dan hapus atau ganti seluruh ketergantungan yang tidak diperlukan, termasuk:
+
+- API AI Studio atau Gemini yang digunakan untuk menjalankan fitur website.
+- Endpoint API sementara yang hanya tersedia selama development.
+- Backend mock atau simulasi.
+- Database cloud yang tidak termasuk dalam arsitektur deployment yang disepakati.
+- URL API yang tertanam langsung dalam source code.
+- Data statis yang seharusnya berasal dari MySQL.
+- Fungsi frontend yang hanya berhasil karena environment preview AI Studio.
+- Permintaan jaringan yang mengarah ke server development atau endpoint internal proyek.
+- Dependensi runtime yang tidak tersedia pada hosting PHP standar.
+
+Jangan mengganti endpoint eksternal dengan endpoint palsu atau membuat fungsi seolah-olah berjalan.
+
+Jika ditemukan fitur yang sebelumnya bergantung pada API atau backend eksternal, implementasikan kembali menggunakan PHP + MySQL apabila memungkinkan. Jika suatu integrasi pihak ketiga memang merupakan kebutuhan bisnis yang disengaja, dokumentasikan dan pisahkan integrasi tersebut agar website tetap dapat menjalankan fungsi intinya tanpa ketergantungan yang tidak perlu.
+
+CDN, layanan font, CAPTCHA, SMTP, atau layanan eksternal lain hanya boleh dipertahankan jika memang dibutuhkan, diidentifikasi secara jelas, dan tidak menjadi ketergantungan tersembunyi. Sediakan alternatif lokal jika sesuai dan memungkinkan.
+
+## D. MYSQL HARUS MENJADI SUMBER DATA YANG SEBENARNYA
+
+Semua konten yang dapat dikelola melalui Admin CMS harus dibaca dan ditulis melalui database MySQL/MariaDB yang dikonfigurasi untuk instalasi tersebut.
+
+Pastikan:
+
+- Website publik dan Admin CMS menggunakan konfigurasi koneksi database yang konsisten.
+- Data yang ditampilkan di website benar-benar berasal dari database.
+- Perubahan di CMS langsung tercermin di halaman publik setelah penyimpanan berhasil.
+- Tidak ada fallback diam-diam ke data demo atau mock ketika query gagal.
+- Tidak ada dua database berbeda yang digunakan tanpa alasan dan dokumentasi.
+- Tidak ada duplikasi data yang membuat CMS dan website menampilkan versi konten berbeda.
+- Seluruh query menggunakan tabel dan kolom yang benar.
+- Koneksi database menggunakan konfigurasi environment atau file konfigurasi yang aman.
+- Password database tidak ditulis dalam source code publik.
+- Kegagalan koneksi ditangani dengan pesan yang aman dan dicatat ke log privat.
+
+Jika cache digunakan, pastikan cache diperbarui atau dibatalkan ketika data diubah, sehingga pengunjung tidak terus melihat konten lama.
+
+## E. HASIL WEBSITE HARUS SAMA DENGAN PREVIEW AI STUDIO
+
+Jadikan preview AI Studio sebagai acuan visual selama proses pengembangan, tetapi pastikan implementasi akhirnya kompatibel dengan lingkungan hosting PHP.
+
+Pertahankan semaksimal mungkin:
+
+- Layout dan struktur halaman.
+- Warna, latar belakang, dan identitas visual.
+- Jenis dan ukuran font.
+- Jarak antarbagian, padding, dan margin.
+- Lebar konten dan grid.
+- Header, navbar, sidebar, dan footer.
+- Ukuran, rasio, posisi, dan crop gambar.
+- Ikon, tombol, kartu, tabel, formulir, dan komponen lainnya.
+- Animasi dan interaksi yang memang tersedia.
+- Responsivitas desktop, tablet, dan ponsel.
+- Urutan konten, teks, gambar, dan elemen navigasi.
+
+Jangan melakukan redesign, mengganti tema, mengurangi komponen, atau mengubah susunan halaman tanpa alasan teknis yang kuat.
+
+Jangan mengganti desain aktual dengan template generik hanya karena lebih mudah diimplementasikan dalam PHP.
+
+Jika preview AI Studio menggunakan komponen React atau komponen khusus yang tidak dapat dijalankan langsung di hosting PHP, porting tampilan dan interaksinya secara tepat ke HTML, CSS, JavaScript, dan PHP. Jangan mengandalkan React runtime atau server development jika target deployment tidak menyediakannya.
+
+Perhatikan juga perbedaan rendering akibat font yang tidak tersedia, path gambar yang salah, CSS yang tidak termuat, JavaScript yang gagal, atau konfigurasi server.
+
+**Targetnya adalah kesetaraan visual dan fungsional semaksimal mungkin antara preview AI Studio dan website yang benar-benar berjalan di hosting.**
+
+Jangan menyatakan hasil sudah identik sebelum melakukan perbandingan visual pada halaman dan ukuran layar yang sama.
+
+## F. WAJIB MELAKUKAN UJI DEPLOYMENT NYATA
+
+Lakukan pengujian terhadap paket yang akan diunggah, bukan hanya source code di lingkungan AI Studio.
+
+Jika lingkungan hosting langsung tidak tersedia, lakukan simulasi deployment menggunakan lingkungan PHP dan MySQL lokal apabila tersedia. Nyatakan secara jujur bagian yang belum dapat diverifikasi di server sebenarnya.
+
+Pengujian minimum:
+
+1. Instalasi database dari file SQL yang disediakan.
+2. Konfigurasi koneksi database untuk hosting.
+3. Akses halaman utama melalui `index.php`.
+4. Akses seluruh halaman publik.
+5. Login dan logout Admin CMS.
+6. Menambah, mengedit, dan menghapus konten melalui CMS.
+7. Memastikan setiap perubahan tersimpan di database yang benar.
+8. Memastikan perubahan langsung terlihat di website publik.
+9. Memastikan gambar dan aset tampil dengan path produksi.
+10. Memastikan formulir dan validasi server-side bekerja.
+11. Memastikan website tidak memerlukan server AI Studio untuk berjalan.
+12. Memastikan tidak ada endpoint development yang masih digunakan oleh fitur inti.
+13. Memastikan tidak ada error PHP fatal, query database gagal, atau aset penting yang hilang.
+14. Membandingkan screenshot website hasil deployment dengan preview AI Studio pada halaman dan viewport yang sama.
+
+Lakukan pengujian ulang setelah setiap perbaikan yang memengaruhi tampilan, database, atau perilaku aplikasi.
+
+## G. HASIL AKHIR YANG WAJIB DISEDIAKAN
+
+Pastikan proyek menghasilkan:
+
+- Source code final yang konsisten.
+- Paket deployment siap diunggah ke `public_html`.
+- File SQL untuk instalasi database yang sesuai dengan kode final.
+- File konfigurasi koneksi database yang aman dan terdokumentasi.
+- Panduan instalasi untuk localhost, cPanel, dan CyberPanel.
+- Daftar dependensi eksternal yang masih digunakan, beserta alasannya.
+- Laporan hasil audit endpoint dan API.
+- Laporan pengujian sinkronisasi Admin CMS dengan website publik.
+- Laporan perbandingan visual preview dan hasil deployment.
+- Daftar file yang diubah dan masalah yang masih tersisa.
+
+Jika tersedia fasilitas pembuatan file atau ZIP dalam proyek, buat paket deployment yang lengkap dan dapat diunduh. Jangan hanya menampilkan daftar file atau potongan kode.
+
+## PERINTAH EKSEKUSI FINAL
+
+**Audit dan perbaiki proyek sekarang. Pastikan source code final, database MySQL, Admin CMS, website publik, dan paket `public_html` merupakan satu implementasi yang konsisten. Hilangkan ketergantungan development dan API AI Studio yang tidak diperlukan. Pertahankan desain sesuai preview AI Studio, lalu verifikasi hasil melalui pengujian yang benar-benar dijalankan.**
+
+Jangan menyatakan proyek selesai hanya karena preview berhasil ditampilkan. Proyek baru dapat dinyatakan siap deployment setelah paket produksi, konfigurasi database, fungsi CMS, keamanan, dan hasil visual telah diperiksa. Setiap bagian yang belum diuji harus ditandai secara transparan.
+
+
+
+perbaiki pengaturan di admin cms blank admin/bagian-halaman.php, admin/halaman.php, admin/pengaturan.php, admin/menu.php cek kembali agar tidak ada lagi bug seperti hal tsb
+perbaiki Icon cari di menu seperti preview belum ada
+hapus menu Admin CMS untuk login di menu website
+lengkapi pengaturan Pengaturan Global SEO & Metadata seperti input kepemilikan website, input txt searc console, fitur Seo yang lengkap
+Pengaturan 🎨 Tema & Slider Beranda defaut slider beranda adalah Daftar Gambar Slider Beranda Saat Ini yang telah dibuat

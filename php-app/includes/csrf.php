@@ -29,6 +29,18 @@ function csrf_field(): string {
 
 function verify_csrf(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Verifikasi Origin header jika dikirim oleh browser untuk mencegah Cross-Origin POST
+        if (!empty($_SERVER['HTTP_ORIGIN']) && !empty($_SERVER['HTTP_HOST'])) {
+            $origin_host = parse_url((string)$_SERVER['HTTP_ORIGIN'], PHP_URL_HOST);
+            $current_host = explode(':', (string)$_SERVER['HTTP_HOST'])[0];
+            if ($origin_host && $current_host && strcasecmp($origin_host, $current_host) !== 0) {
+                if (!headers_sent()) {
+                    http_response_code(403);
+                }
+                die('Validasi Keamanan Gagal (Cross-Origin Request Ditolak).');
+            }
+        }
+
         $token = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
         $session_token = $_SESSION['csrf_token'] ?? '';
         if (empty($token) || empty($session_token) || !hash_equals((string)$session_token, (string)$token)) {

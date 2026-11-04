@@ -13,6 +13,7 @@ $static_routes = [
     'index.php'             => '1.0',
     'tentang.php'           => '0.9',
     'layanan.php'           => '0.9',
+    'slideshow.php'         => '0.9',
     'harga.php'             => '0.9',
     'faq.php'               => '0.8',
     'portofolio.php'        => '0.8',
@@ -35,6 +36,18 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 <?php endforeach; ?>
 <?php
 try {
+    foreach (get_slideshow_categories($pdo, true) as $slide_cat):
+        $lastmod_sc = !empty($slide_cat['updated_at']) ? date('Y-m-d', strtotime($slide_cat['updated_at'])) : $today;
+?>
+    <url>
+        <loc><?= e($base . '/slideshow-detail.php?slug=' . urlencode((string)$slide_cat['slug'])) ?></loc>
+        <lastmod><?= $lastmod_sc ?></lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+<?php
+    endforeach;
+
     $stmt_srv = $pdo->query("SELECT slug, updated_at FROM services WHERE is_published = 1");
     while ($srv = $stmt_srv->fetch()):
         $lastmod = !empty($srv['updated_at']) ? date('Y-m-d', strtotime($srv['updated_at'])) : $today;

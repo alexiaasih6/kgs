@@ -27,9 +27,16 @@ import {
   B2B_PRICING_PLANS,
   FaqItem,
   FAQ_DATA,
+  SlideshowCategoryItem,
+  INITIAL_SLIDESHOW_CATEGORIES,
+  PromoItem,
+  INITIAL_PROMOS,
+  TestimonialItem,
+  INITIAL_TESTIMONIALS,
   buildGoogleMapEmbedUrl,
   buildGoogleMapDirectLink
 } from '../../data/companyData';
+import { KgsBrandLogo } from '../Navbar';
 import { AdminServices } from './AdminServices';
 import { AdminCategories } from './AdminCategories';
 import { AdminClients } from './AdminClients';
@@ -44,6 +51,17 @@ import { AdminTestingCenter } from './AdminTestingCenter';
 import { AdminNavigation } from './AdminNavigation';
 import { AdminThemeSlider } from './AdminThemeSlider';
 import { AdminWebsiteSections } from './AdminWebsiteSections';
+import { AdminSlideshow } from './AdminSlideshow';
+import {
+  AdminPromos,
+  AdminTestimonials,
+  AdminKemitraan
+} from './AdminPromoTestimoni';
+import {
+  AdminMediaManager,
+  MediaLibraryPickerModal,
+  recordUploadedMedia
+} from './MediaLibraryPickerModal';
 import {
   LayoutDashboard,
   Layers,
@@ -78,7 +96,8 @@ import {
   Palette,
   Edit3,
   Sun,
-  Moon
+  Moon,
+  FolderOpen
 } from 'lucide-react';
 import { ColorMode } from '../../utils/exportSync';
 
@@ -122,7 +141,15 @@ interface AdminDashboardProps {
   onUpdatePricingPlans?: (items: PricingPlanItem[]) => void;
   faqs?: FaqItem[];
   onUpdateFaqs?: (items: FaqItem[]) => void;
+  promos?: PromoItem[];
+  onUpdatePromos?: (items: PromoItem[]) => void;
+  testimonials?: TestimonialItem[];
+  onUpdateTestimonials?: (items: TestimonialItem[]) => void;
+  slideshowCategories?: SlideshowCategoryItem[];
+  onUpdateSlideshowCategories?: React.Dispatch<React.SetStateAction<SlideshowCategoryItem[]>>;
+  onPreviewSlideshowCategory?: (slug: string) => void;
   onOpenLiveEditor?: () => void;
+  onAuthChange?: (authenticated: boolean) => void;
   initialTab?: string;
   colorMode?: ColorMode;
   isDarkMode?: boolean;
@@ -169,7 +196,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdatePricingPlans,
   faqs = FAQ_DATA,
   onUpdateFaqs,
+  promos = INITIAL_PROMOS,
+  onUpdatePromos,
+  testimonials = INITIAL_TESTIMONIALS,
+  onUpdateTestimonials,
+  slideshowCategories = INITIAL_SLIDESHOW_CATEGORIES,
+  onUpdateSlideshowCategories,
+  onPreviewSlideshowCategory,
   onOpenLiveEditor,
+  onAuthChange,
   initialTab,
   colorMode = 'light',
   isDarkMode = false,
@@ -180,7 +215,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return localStorage.getItem('kgs_admin_auth') === 'true';
   });
 
-  const [username, setUsername] = useState('admin_kgs');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
@@ -203,7 +238,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | 'overview'
     | 'website_sections'
     | 'services'
+    | 'promos'
+    | 'partners_admin'
+    | 'testimonials'
     | 'categories'
+    | 'slideshow'
+    | 'media'
     | 'portfolio'
     | 'clients'
     | 'articles'
@@ -250,10 +290,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [lngInput, setLngInput] = useState('104.7644');
 
   const [logoPreview, setLogoPreview] = useState<string>(() => {
-    return localStorage.getItem('kgs_custom_logo') || companyLogo || '';
+    const saved = localStorage.getItem('kgs_custom_logo') || companyLogo || '';
+    if (saved.includes('image_8b7e60bd')) return '';
+    return saved;
   });
 
   const [settingsSavedMsg, setSettingsSavedMsg] = useState(false);
+  const [logoMediaPickerTarget, setLogoMediaPickerTarget] = useState<'header' | 'footer' | null>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -264,6 +307,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const reader = new FileReader();
     reader.onload = event => {
       const result = event.target?.result as string;
+      recordUploadedMedia(result, `Logo ${file.name}`, 'Logo & Identitas', file.name);
       setLogoPreview(result);
     };
     reader.readAsDataURL(file);
@@ -293,24 +337,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (loginAttempts >= 5) {
-      setLoginError('Terlalu banyak percobaan gagal. Akses terkunci sementara selama 15 menit.');
+      setLoginError('Terlalu banyak percobaan gagal. Akses dikunci sementara selama 15 menit.');
       return;
     }
 
-    if (password.length < 6) {
+    const cleanUser = username.trim().toLowerCase();
+    const matchedUser = users.find(
+      u =>
+        u.status === 'active' &&
+        (u.username.toLowerCase() === cleanUser || u.email.toLowerCase() === cleanUser)
+    );
+
+    if (!matchedUser || password.length < 6) {
       setLoginAttempts(prev => prev + 1);
-      setLoginError(`Password salah. Minimal 6 karakter. Sisa percobaan: ${4 - loginAttempts}`);
+      setLoginError('Kredensial yang Anda masukkan tidak valid.');
       return;
     }
 
     setIsAuthenticated(true);
     localStorage.setItem('kgs_admin_auth', 'true');
+    onAuthChange?.(true);
     setLoginError('');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('kgs_admin_auth');
+    onAuthChange?.(false);
     setPassword('');
   };
 
@@ -319,7 +372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setMobileSidebarOpen(false);
   };
 
-  // If not authenticated, render secure login form
+  // If not authenticated, render secure internal management form without security stack or credential hints
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4">
@@ -328,19 +381,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto text-white font-black text-xl shadow-lg">
               KGS
             </div>
-            <h2 className="text-xl font-bold text-white tracking-tight">Login Administrator CMS</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">Portal Manajemen Internal</h2>
             <p className="text-xs text-slate-400">
-              PT. Kreatif Global Solusindo — Portal Kendali Perusahaan
-            </p>
-          </div>
-
-          <div className="bg-slate-700/50 p-3.5 rounded-xl border border-slate-600/60 text-xs text-slate-300 space-y-1">
-            <div className="font-semibold text-emerald-400 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Proteksi Anti Brute-Force & BCRYPT Hash Aktif</span>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Gunakan kata sandi administrator (minimal 6 karakter) untuk mengakses panel kendali.
+              PT. Kreatif Global Solusindo — Sistem Kendali Perusahaan
             </p>
           </div>
 
@@ -353,25 +396,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Username Admin</label>
+              <label className="block text-slate-300 font-semibold mb-1">ID Pengguna / Email</label>
               <input
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 required
+                autoComplete="username"
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Kata Sandi (Password)</label>
+              <label className="block text-slate-300 font-semibold mb-1">Kata Sandi</label>
               <div className="relative">
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  placeholder="Ketik password admin (misal: admin123)"
+                  autoComplete="current-password"
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                 />
               </div>
@@ -382,7 +426,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
             >
               <Lock className="w-4 h-4" />
-              <span>Masuk ke Admin CMS</span>
+              <span>Masuk ke Panel Kendali</span>
             </button>
           </form>
 
@@ -392,7 +436,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               className="text-xs text-slate-400 hover:text-white transition inline-flex items-center gap-1 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Kembali ke Website Publik</span>
+              <span>Kembali ke Website Utama</span>
             </button>
           </div>
         </div>
@@ -569,10 +613,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Layers className="w-4 h-4 shrink-0" />
-              <span>Layanan</span>
+              <span>Produk &amp; Layanan</span>
             </div>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
               {services.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab('promos')}
+            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
+              activeTab === 'promos'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Plus className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>Promo</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              {promos.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab('clients')}
+            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
+              activeTab === 'clients'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Users className="w-4 h-4 shrink-0" />
+              <span>Client / Pelanggan</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+              {clients.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab('partners_admin')}
+            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
+              activeTab === 'partners_admin'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-blue-400" />
+              <span>Kemitraan</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+              {partners.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab('testimonials')}
+            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
+              activeTab === 'testimonials'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <MessageSquare className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>Testimoni</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              {testimonials.length}
             </span>
           </button>
 
@@ -594,6 +706,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
 
           <button
+            onClick={() => handleSelectTab('slideshow')}
+            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
+              activeTab === 'slideshow'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <ImageIcon className="w-4 h-4 shrink-0 text-blue-400" />
+              <span>Slide Show / Galeri</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              {slideshowCategories.length} Kat
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab('media')}
+            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
+              activeTab === 'media'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-indigo-200 bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-800/50'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <FolderOpen className="w-4 h-4 shrink-0 text-indigo-400" />
+              <span>🖼️ Media &amp; Upload Gambar</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+              Galeri
+            </span>
+          </button>
+
+          <button
             onClick={() => handleSelectTab('portfolio')}
             className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
               activeTab === 'portfolio'
@@ -607,23 +753,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
               {projects.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => handleSelectTab('clients')}
-            className={`w-full px-3 py-2.5 rounded-xl font-semibold transition flex items-center justify-between cursor-pointer ${
-              activeTab === 'clients'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <Users className="w-4 h-4 shrink-0" />
-              <span>Daftar Klien</span>
-            </div>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-              {clients.length}
             </span>
           </button>
 
@@ -697,6 +826,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <Settings className="w-4 h-4 shrink-0" />
               <span>Identitas, Logo & Maps</span>
             </div>
+          </button>
+
+          <button
+            onClick={() => {
+              handleSelectTab('settings');
+              setTimeout(() => {
+                document.getElementById('admin-seo-verification-card')?.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            }}
+            className="w-full px-3 py-2.5 rounded-xl font-semibold text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 transition flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>SEO Global & Search Console</span>
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-extrabold">
+              TXT/HTML
+            </span>
           </button>
 
           <button
@@ -831,13 +978,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {activeTab === 'overview' && 'Dashboard Utama CMS'}
                 {activeTab === 'website_sections' && 'Kelola Semua Bagian Halaman Website (Beranda, Tentang, Harga, FAQ, Header/Footer)'}
                 {activeTab === 'audit' && `Katalog Layanan (${services.length} Standar)`}
-                {activeTab === 'services' && 'Manajemen Layanan'}
+                {activeTab === 'services' && 'Manajemen Produk & Layanan'}
+                {activeTab === 'promos' && 'Manajemen Promo & Penawaran Spesial'}
+                {activeTab === 'partners_admin' && 'Manajemen Kemitraan Strategis & Prinsipal Resmi'}
+                {activeTab === 'testimonials' && 'Manajemen Testimoni Client / Pelanggan'}
                 {activeTab === 'categories' && 'Kategori Segmen Layanan'}
+                {activeTab === 'slideshow' && 'Manajemen Slide Show & Galeri Infrastruktur Multi-Gambar'}
+                {activeTab === 'media' && '🖼️ Media & Upload Gambar (Pustaka Gambar Terpusat)'}
                 {activeTab === 'portfolio' && 'Dokumentasi Proyek Lapangan'}
-                {activeTab === 'clients' && 'Daftar Klien Terverifikasi'}
+                {activeTab === 'clients' && 'Manajemen Client / Pelanggan Terverifikasi'}
                 {activeTab === 'articles' && 'Manajemen Artikel, Gambar & Label'}
                 {activeTab === 'pages' && 'Manajemen Halaman Statis'}
-                {activeTab === 'inquiries' && 'Permintaan Penawaran Masuk (Leads)'}
+                {activeTab === 'inquiries' && 'Permintaan Penawaran Masuk / Hubungi Kami (Leads)'}
                 {activeTab === 'settings' && 'Identitas Perusahaan, Logo, Alamat Kantor, WhatsApp CS & Google Maps'}
                 {activeTab === 'navigation' && 'Pengaturan Navigasi — Header & Footer'}
                 {activeTab === 'theme_slider' && 'Pengaturan Tema Website & Gambar Slider Beranda'}
@@ -1134,6 +1286,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
 
+          {/* Tab 3b: Slide Show & Multi-Image Gallery CRUD */}
+          {activeTab === 'slideshow' && onUpdateSlideshowCategories && (
+            <AdminSlideshow
+              categories={slideshowCategories}
+              onUpdateCategories={onUpdateSlideshowCategories}
+              onLogAction={(action, details) => {
+                // Handled by parent state update
+              }}
+              onPreviewCategory={slug => {
+                if (onPreviewSlideshowCategory) {
+                  onPreviewSlideshowCategory(slug);
+                } else {
+                  onExitAdmin();
+                }
+              }}
+            />
+          )}
+
+          {/* Tab 3c: Pustaka Media & Upload Gambar */}
+          {activeTab === 'media' && (
+            <AdminMediaManager
+              slideshowCategories={slideshowCategories}
+              sliderConfig={sliderConfig}
+              projects={projects}
+              companyLogo={logoPreview}
+            />
+          )}
+
           {/* Tab 4: Portfolio CRUD */}
           {activeTab === 'portfolio' && (
             <AdminPortfolio projects={projects} onUpdateProjects={onUpdateProjects} />
@@ -1211,14 +1391,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <form onSubmit={handleSaveCompanySettings} className="space-y-6">
-                {/* 1. Logo Upload Card */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                  <label className="block font-bold text-slate-900 text-xs">
-                    1. Logo Perusahaan (Upload Berkas Gambar Logo)
-                  </label>
-                  <div className="flex flex-col sm:flex-row items-center gap-5">
-                    {/* Preview Box */}
-                    <div className="w-36 h-20 bg-white rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center p-2 overflow-hidden shadow-xs shrink-0">
+                {/* 1. Pengaturan Logo Resmi PT. Kreatif Global Solusindo */}
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <div>
+                      <label className="block font-extrabold text-slate-900 text-xs sm:text-sm">
+                        1. Pengaturan Logo, Nama PT / Website (Warna Custom) &amp; Deskripsi Bawah Logo
+                      </label>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Logo ditampilkan di kiri, sampingnya Nama PT atau Nama Website dengan warna yang dapat dicustom, dan di bawah Logo &amp; Nama tampil deskripsi &quot;System Integrator, Security Solution &amp; Internet Provider&quot;.
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-bold text-[10px] uppercase tracking-wider shrink-0">
+                      Aktif di Header &amp; Footer
+                    </span>
+                  </div>
+
+                  {/* Live Preview Box of Header Brand Logo */}
+                  <div className="p-4 rounded-2xl bg-white border-2 border-blue-200 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
+                      <span>Pratinjau Langsung Logo + Nama PT/Website + Deskripsi Bawah di Header:</span>
+                      <span className="text-blue-600 font-bold">Live Preview</span>
+                    </div>
+                    <div className="py-3 px-4 rounded-xl bg-slate-50/70 border border-slate-200/80 flex items-center justify-start overflow-x-auto">
+                      <KgsBrandLogo
+                        companyLogo={logoPreview}
+                        companySettings={companySettings}
+                        isDarkNavbar={false}
+                        themeConfig={themeConfig}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Upload & Rollback Logo Buttons + Warna Logo KGS */}
+                  <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="w-20 h-20 bg-slate-50 rounded-xl border border-slate-300 flex items-center justify-center p-2 overflow-hidden shrink-0">
                       {logoPreview ? (
                         <img
                           src={logoPreview}
@@ -1226,19 +1433,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           className="max-h-full max-w-full object-contain"
                         />
                       ) : (
-                        <div className="text-center text-slate-400">
-                          <ImageIcon className="w-6 h-6 mx-auto mb-1 text-slate-300" />
-                          <span className="text-[10px] block font-medium">Belum Ada Logo</span>
+                        <div
+                          style={{
+                            backgroundColor:
+                              companySettings.logoBgColor || themeConfig.primaryColor || '#2563eb',
+                            color: companySettings.logoTextColor || '#ffffff'
+                          }}
+                          className="w-11 h-11 font-black text-base rounded-xl flex items-center justify-center shadow-sm"
+                        >
+                          KGS
                         </div>
                       )}
                     </div>
 
-                    {/* Upload Controls */}
-                    <div className="space-y-2 flex-1 w-full">
+                    <div className="space-y-2.5 flex-1 w-full">
                       <div className="flex flex-wrap items-center gap-2">
-                        <label className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs cursor-pointer flex items-center gap-1.5 transition shadow-xs">
+                        <label className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs cursor-pointer flex items-center gap-1.5 transition shadow-xs">
                           <Upload className="w-3.5 h-3.5" />
-                          <span>Upload File Logo Baru</span>
+                          <span>Choose File / Upload Logo Kustom</span>
                           <input
                             type="file"
                             accept="image/png, image/jpeg, image/webp, image/svg+xml"
@@ -1249,18 +1461,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         <button
                           type="button"
-                          onClick={() => {
-                            const svg =
-                              'data:image/svg+xml;utf8,' +
-                              encodeURIComponent(
-                                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" fill="none"><rect width="64" height="64" rx="14" fill="#1d4ed8"/><text x="32" y="42" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="24" fill="#ffffff" text-anchor="middle">KGS</text><text x="76" y="28" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="16" fill="#0f172a">PT. KREATIF GLOBAL SOLUSINDO</text><text x="76" y="48" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="12" fill="#2563eb">System Integrator · Security · ISP</text></svg>'
-                              );
-                            setLogoPreview(svg);
-                          }}
-                          className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer transition"
+                          onClick={() => setLogoMediaPickerTarget('header')}
+                          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs cursor-pointer flex items-center gap-1.5 transition shadow-xs"
                         >
-                          <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Gunakan Logo Resmi KGS (Preset Vector)</span>
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <span>🖼️ Pilih dari Media &amp; Upload Gambar</span>
                         </button>
 
                         {logoPreview && (
@@ -1270,23 +1475,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer transition"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus Logo</span>
+                            <span>Hapus Gambar &amp; Gunakan Logo KGS Default</span>
                           </button>
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500">
-                        Format yang didukung: PNG, JPG, SVG, WebP. Logo langsung tampil pada Header & Footer website publik.
+                        Jika tidak mengunggah gambar, sistem menampilkan ikon logo <strong>KGS</strong> di sebelah kiri tulisan <strong>PT. KREATIF GLOBAL SOLUSINDO</strong> yang warnanya dapat disesuaikan di bawah ini:
                       </p>
+                      <div className="flex flex-wrap items-center gap-3 pt-1">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[11px] font-bold text-slate-700">
+                            Warna Latar Logo KGS:
+                          </label>
+                          <input
+                            type="color"
+                            value={companySettings.logoBgColor || themeConfig.primaryColor || '#2563eb'}
+                            onChange={e =>
+                              setCompanySettings({
+                                ...companySettings,
+                                logoBgColor: e.target.value
+                              })
+                            }
+                            className="w-8 h-7 rounded border border-slate-300 cursor-pointer bg-white p-0.5"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[11px] font-bold text-slate-700">
+                            Warna Teks KGS:
+                          </label>
+                          <input
+                            type="color"
+                            value={companySettings.logoTextColor || '#ffffff'}
+                            onChange={e =>
+                              setCompanySettings({
+                                ...companySettings,
+                                logoTextColor: e.target.value
+                              })
+                            }
+                            className="w-8 h-7 rounded border border-slate-300 cursor-pointer bg-white p-0.5"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 2. Editable Company Info & Direct WhatsApp CS */}
+                {/* 2. Editable Company Info, Custom Colors & Direct WhatsApp CS */}
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-bold mb-1 text-slate-800">
-                        Nama Legalitas Perusahaan *
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    {/* Samping Logo: Nama PT atau Nama Website + Warna Custom */}
+                    <div className="space-y-2.5 bg-white p-3.5 rounded-xl border border-slate-200">
+                      <label className="block font-bold text-slate-900">
+                        Nama PT atau Nama Website (Di Samping Logo) *
                       </label>
                       <input
                         type="text"
@@ -1295,13 +1535,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         onChange={e =>
                           setCompanySettings({ ...companySettings, legalName: e.target.value })
                         }
-                        className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-semibold"
+                        placeholder="PT. KREATIF GLOBAL SOLUSINDO"
+                        className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-bold"
                       />
+                      <div className="pt-1 space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700">
+                          Warna Teks Nama PT / Nama Website (Dapat Dicustom):
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="color"
+                            value={companySettings.companyNameColor || '#0f172a'}
+                            onChange={e =>
+                              setCompanySettings({
+                                ...companySettings,
+                                companyNameColor: e.target.value
+                              })
+                            }
+                            className="w-10 h-9 rounded-lg border border-slate-300 cursor-pointer p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={companySettings.companyNameColor || '#0f172a'}
+                            onChange={e =>
+                              setCompanySettings({
+                                ...companySettings,
+                                companyNameColor: e.target.value
+                              })
+                            }
+                            placeholder="#0f172a"
+                            className="w-28 border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono text-xs font-bold text-slate-800"
+                          />
+                          <div className="flex flex-wrap items-center gap-1">
+                            {[
+                              { label: 'Hitam Slate', color: '#0f172a' },
+                              { label: 'Biru Royal', color: '#1d4ed8' },
+                              { label: 'Biru KGS', color: '#0018f9' },
+                              { label: 'Navy', color: '#1e3a8a' },
+                              { label: 'Emerald', color: '#047857' },
+                              { label: 'Merah', color: '#dc2626' }
+                            ].map(preset => (
+                              <button
+                                key={preset.color}
+                                type="button"
+                                onClick={() =>
+                                  setCompanySettings({
+                                    ...companySettings,
+                                    companyNameColor: preset.color
+                                  })
+                                }
+                                className="px-2 py-1 rounded-md border border-slate-200 text-[10px] font-bold flex items-center gap-1 hover:bg-slate-100 cursor-pointer"
+                              >
+                                <span
+                                  style={{ backgroundColor: preset.color }}
+                                  className="w-2.5 h-2.5 rounded-full inline-block"
+                                />
+                                <span>{preset.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block font-bold mb-1 text-slate-800">
-                        Slogan / Tagline Resmi *
+                    {/* Di Bawah Logo & Nama: Deskripsi + Warna Custom */}
+                    <div className="space-y-2.5 bg-white p-3.5 rounded-xl border border-slate-200">
+                      <label className="block font-bold text-slate-900">
+                        Deskripsi di Bawah Logo &amp; Nama *
                       </label>
                       <input
                         type="text"
@@ -1310,15 +1610,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         onChange={e =>
                           setCompanySettings({ ...companySettings, slogan: e.target.value })
                         }
-                        className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900"
+                        placeholder="System Integrator, Security Solution & Internet Provider"
+                        className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-semibold"
                       />
+                      <div className="pt-1 space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700">
+                          Warna Teks Deskripsi Bawah Logo &amp; Nama:
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="color"
+                            value={companySettings.sloganColor || '#2563eb'}
+                            onChange={e =>
+                              setCompanySettings({
+                                ...companySettings,
+                                sloganColor: e.target.value
+                              })
+                            }
+                            className="w-10 h-9 rounded-lg border border-slate-300 cursor-pointer p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={companySettings.sloganColor || '#2563eb'}
+                            onChange={e =>
+                              setCompanySettings({
+                                ...companySettings,
+                                sloganColor: e.target.value
+                              })
+                            }
+                            placeholder="#2563eb"
+                            className="w-28 border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono text-xs font-bold text-slate-800"
+                          />
+                          <div className="flex flex-wrap items-center gap-1">
+                            {[
+                              { label: 'Biru Utama', color: '#2563eb' },
+                              { label: 'Hitam Abu', color: '#334155' },
+                              { label: 'Biru Tua', color: '#1e40af' },
+                              { label: 'Emerald', color: '#059669' }
+                            ].map(preset => (
+                              <button
+                                key={preset.color}
+                                type="button"
+                                onClick={() =>
+                                  setCompanySettings({
+                                    ...companySettings,
+                                    sloganColor: preset.color
+                                  })
+                                }
+                                className="px-2 py-1 rounded-md border border-slate-200 text-[10px] font-bold flex items-center gap-1 hover:bg-slate-100 cursor-pointer"
+                              >
+                                <span
+                                  style={{ backgroundColor: preset.color }}
+                                  className="w-2.5 h-2.5 rounded-full inline-block"
+                                />
+                                <span>{preset.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block font-semibold mb-1 text-slate-700">
-                        Telepon Kantor (Hunting)
+                        Telepon Kantor
                       </label>
                       <input
                         type="text"
@@ -1607,7 +1964,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <label className="block font-bold text-slate-200 mb-1">
                         Logo Khusus Footer (Opsional — Kosongkan untuk memakai Logo Utama)
                       </label>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <input
                           type="text"
                           value={companySettings.footerLogo || ''}
@@ -1618,10 +1975,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             })
                           }
                           placeholder="Kosongkan untuk mengikuti Logo Utama..."
-                          className="flex-1 border border-slate-700 bg-slate-800 text-white rounded-xl p-2.5 font-mono"
+                          className="flex-1 min-w-[180px] border border-slate-700 bg-slate-800 text-white rounded-xl p-2.5 font-mono"
                         />
-                        <label className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl cursor-pointer inline-flex items-center shrink-0">
-                          <span>Upload Logo Footer</span>
+                        <label className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl cursor-pointer inline-flex items-center gap-1.5 shrink-0">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Choose File</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -1633,6 +1991,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               reader.onload = ev => {
                                 const res = ev.target?.result;
                                 if (typeof res === 'string') {
+                                  recordUploadedMedia(res, `Logo Footer ${file.name}`, 'Logo Footer', file.name);
                                   setCompanySettings({
                                     ...companySettings,
                                     footerLogo: res
@@ -1643,6 +2002,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             }}
                           />
                         </label>
+                        <button
+                          type="button"
+                          onClick={() => setLogoMediaPickerTarget('footer')}
+                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <span>🖼️ Pilih dari Media</span>
+                        </button>
                       </div>
                     </div>
 
@@ -1714,7 +2081,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     <div>
                       <label className="block font-bold text-emerald-400 mb-1">
-                        Judul Bagian Lisensi & Sertifikasi Footer
+                        Judul Bagian Lisensi &amp; Sertifikasi Footer
                       </label>
                       <input
                         type="text"
@@ -1730,7 +2097,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <div className="md:col-span-2">
                       <label className="block font-bold text-emerald-400 mb-1">
-                        Badge Lisensi, Sertifikasi & Keanggotaan (Pisahkan dengan |)
+                        Badge Lisensi, Sertifikasi &amp; Keanggotaan (Pisahkan dengan |)
                       </label>
                       <input
                         type="text"
@@ -1746,6 +2113,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         }
                         className="w-full border border-slate-700 bg-slate-800 text-white rounded-xl p-2.5 font-semibold"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-emerald-400 mb-1">
+                        Tampilan Baris &quot;Sertifikasi &amp; Keanggotaan Resmi&quot; Footer
+                      </label>
+                      <select
+                        value={companySettings.footerShowCertSection !== false ? '1' : '0'}
+                        onChange={e =>
+                          setCompanySettings({
+                            ...companySettings,
+                            footerShowCertSection: e.target.value === '1'
+                          })
+                        }
+                        className="w-full border border-slate-700 bg-slate-800 text-white rounded-xl p-2.5 font-bold"
+                      >
+                        <option value="1">✓ Ditampilkan</option>
+                        <option value="0">✕ Tidak Ditampilkan</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-emerald-400 mb-1">
+                        Tampilan Label &quot;✓ Terverifikasi &amp; Berlisensi Resmi&quot;
+                      </label>
+                      <select
+                        value={companySettings.footerShowCertStatus !== false ? '1' : '0'}
+                        onChange={e =>
+                          setCompanySettings({
+                            ...companySettings,
+                            footerShowCertStatus: e.target.value === '1'
+                          })
+                        }
+                        className="w-full border border-slate-700 bg-slate-800 text-white rounded-xl p-2.5 font-bold"
+                      >
+                        <option value="1">✓ Ditampilkan</option>
+                        <option value="0">✕ Tidak Ditampilkan</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-emerald-400 mb-1">
+                        Tampilan Badge Lisensi (Kolom Kiri Footer)
+                      </label>
+                      <select
+                        value={companySettings.footerShowCertBadges !== false ? '1' : '0'}
+                        onChange={e =>
+                          setCompanySettings({
+                            ...companySettings,
+                            footerShowCertBadges: e.target.value === '1'
+                          })
+                        }
+                        className="w-full border border-slate-700 bg-slate-800 text-white rounded-xl p-2.5 font-bold"
+                      >
+                        <option value="1">✓ Ditampilkan</option>
+                        <option value="0">✕ Tidak Ditampilkan</option>
+                      </select>
                     </div>
 
                     <div className="md:col-span-3">
@@ -1767,6 +2189,540 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="w-full border border-amber-500/50 bg-slate-800 text-white rounded-xl p-2.5 font-bold"
                       />
                     </div>
+
+                    {/* Pengaturan Icon Sosial Media di Kolom Alamat Kantor & Kontak Footer (Full CRUD + Urutan + Status Aktif/Nonaktif) */}
+                    <div className="md:col-span-3 pt-4 border-t border-slate-700 space-y-4">
+                      {(() => {
+                        const rawSocialList =
+                          Array.isArray(companySettings.socialLinks) &&
+                          companySettings.socialLinks.length > 0
+                            ? [...companySettings.socialLinks].sort(
+                                (a, b) => a.sortOrder - b.sortOrder
+                              )
+                            : [
+                                {
+                                  id: 'soc-fb',
+                                  platform: 'Facebook',
+                                  url:
+                                    companySettings.socialFacebook !== undefined
+                                      ? companySettings.socialFacebook
+                                      : 'https://facebook.com/kgs.palembang',
+                                  isActive: true,
+                                  sortOrder: 1
+                                },
+                                {
+                                  id: 'soc-ig',
+                                  platform: 'Instagram',
+                                  url:
+                                    companySettings.socialInstagram !== undefined
+                                      ? companySettings.socialInstagram
+                                      : 'https://instagram.com/kgs.palembang',
+                                  isActive: true,
+                                  sortOrder: 2
+                                },
+                                {
+                                  id: 'soc-li',
+                                  platform: 'LinkedIn',
+                                  url:
+                                    companySettings.socialLinkedin !== undefined
+                                      ? companySettings.socialLinkedin
+                                      : 'https://linkedin.com/company/kreatif-global-solusindo',
+                                  isActive: true,
+                                  sortOrder: 3
+                                },
+                                {
+                                  id: 'soc-yt',
+                                  platform: 'YouTube',
+                                  url:
+                                    companySettings.socialYoutube !== undefined
+                                      ? companySettings.socialYoutube
+                                      : 'https://youtube.com/@kreatifglobalsolusindo',
+                                  isActive: true,
+                                  sortOrder: 4
+                                },
+                                {
+                                  id: 'soc-tt',
+                                  platform: 'TikTok',
+                                  url:
+                                    companySettings.socialTiktok !== undefined
+                                      ? companySettings.socialTiktok
+                                      : 'https://tiktok.com/@kgs.palembang',
+                                  isActive: true,
+                                  sortOrder: 5
+                                },
+                                {
+                                  id: 'soc-wa',
+                                  platform: 'WhatsApp',
+                                  url:
+                                    companySettings.socialWhatsapp !== undefined
+                                      ? companySettings.socialWhatsapp
+                                      : 'https://wa.me/62811782119',
+                                  isActive: true,
+                                  sortOrder: 6
+                                }
+                              ];
+
+                        const syncSocialLinksToSettings = (nextList: typeof rawSocialList) => {
+                          const sorted = [...nextList]
+                            .sort((a, b) => a.sortOrder - b.sortOrder)
+                            .map((item, index) => ({
+                              ...item,
+                              sortOrder: index + 1
+                            }));
+                          const findUrl = (kw: string) => {
+                            const found = sorted.find(
+                              s => s.platform.toLowerCase().includes(kw) && s.isActive
+                            );
+                            return found ? found.url : '';
+                          };
+                          setCompanySettings({
+                            ...companySettings,
+                            socialLinks: sorted,
+                            socialFacebook: findUrl('facebook'),
+                            socialInstagram: findUrl('instagram'),
+                            socialLinkedin: findUrl('linkedin'),
+                            socialYoutube: findUrl('youtube'),
+                            socialTiktok: findUrl('tiktok'),
+                            socialWhatsapp: findUrl('whatsapp')
+                          });
+                        };
+
+                        return (
+                          <>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div>
+                                <div className="font-bold text-emerald-400 text-xs">
+                                  🌐 Manajemen Akun Sosial Media di Footer (Bagian Alamat Kantor &amp; Kontak)
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Kelola nama platform, URL akun, status aktif/nonaktif, urutan tampil, tambah akun baru, atau hapus akun sosial media. Hanya akun berstatus Aktif dengan URL valid (<code>https://...</code>) yang ditampilkan di Footer.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextItem = {
+                                    id: `soc-${Date.now()}`,
+                                    platform: 'Instagram / Platform Baru',
+                                    url: 'https://',
+                                    isActive: true,
+                                    sortOrder: rawSocialList.length + 1
+                                  };
+                                  syncSocialLinksToSettings([...rawSocialList, nextItem]);
+                                }}
+                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shrink-0 cursor-pointer transition shadow-xs"
+                              >
+                                + Tambah Akun Sosial Media
+                              </button>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {rawSocialList.map((soc, idx) => {
+                                const isValidUrl = /^https?:\/\/.+/i.test((soc.url || '').trim());
+                                return (
+                                  <div
+                                    key={soc.id}
+                                    className={`p-3 rounded-xl border transition grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center ${
+                                      soc.isActive
+                                        ? 'bg-slate-800/90 border-slate-700'
+                                        : 'bg-slate-900/60 border-slate-800 opacity-65'
+                                    }`}
+                                  >
+                                    {/* Urutan Tampil */}
+                                    <div className="md:col-span-2 flex items-center gap-1.5">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                        Urutan:
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={idx === 0}
+                                        onClick={() => {
+                                          if (idx === 0) return;
+                                          const copy = [...rawSocialList];
+                                          const temp = copy[idx - 1];
+                                          copy[idx - 1] = { ...copy[idx], sortOrder: idx };
+                                          copy[idx] = { ...temp, sortOrder: idx + 1 };
+                                          syncSocialLinksToSettings(copy);
+                                        }}
+                                        className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
+                                        title="Geser ke Atas"
+                                      >
+                                        &uarr;
+                                      </button>
+                                      <span className="px-2 py-1 rounded bg-slate-900 text-blue-400 font-mono font-bold text-xs">
+                                        #{idx + 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={idx === rawSocialList.length - 1}
+                                        onClick={() => {
+                                          if (idx === rawSocialList.length - 1) return;
+                                          const copy = [...rawSocialList];
+                                          const temp = copy[idx + 1];
+                                          copy[idx + 1] = { ...copy[idx], sortOrder: idx + 2 };
+                                          copy[idx] = { ...temp, sortOrder: idx + 1 };
+                                          syncSocialLinksToSettings(copy);
+                                        }}
+                                        className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white text-xs font-bold cursor-pointer"
+                                        title="Geser ke Bawah"
+                                      >
+                                        &darr;
+                                      </button>
+                                    </div>
+
+                                    {/* Nama Platform */}
+                                    <div className="md:col-span-3">
+                                      <input
+                                        type="text"
+                                        value={soc.platform}
+                                        onChange={e => {
+                                          const copy = rawSocialList.map(item =>
+                                            item.id === soc.id
+                                              ? { ...item, platform: e.target.value }
+                                              : item
+                                          );
+                                          syncSocialLinksToSettings(copy);
+                                        }}
+                                        placeholder="Nama Platform (Facebook, Instagram...)"
+                                        className="w-full border border-slate-700 bg-slate-900 text-white font-bold rounded-lg px-2.5 py-2 text-xs"
+                                      />
+                                    </div>
+
+                                    {/* URL Akun Sosial Media */}
+                                    <div className="md:col-span-4">
+                                      <input
+                                        type="url"
+                                        value={soc.url}
+                                        onChange={e => {
+                                          const nextUrl = e.target.value;
+                                          if (/^\s*javascript:/i.test(nextUrl)) return;
+                                          const copy = rawSocialList.map(item =>
+                                            item.id === soc.id
+                                              ? { ...item, url: nextUrl }
+                                              : item
+                                          );
+                                          syncSocialLinksToSettings(copy);
+                                        }}
+                                        placeholder="https://..."
+                                        className={`w-full border bg-slate-900 text-white font-mono rounded-lg px-2.5 py-2 text-xs ${
+                                          isValidUrl || !soc.url
+                                            ? 'border-slate-700'
+                                            : 'border-amber-500/80'
+                                        }`}
+                                      />
+                                    </div>
+
+                                    {/* Status Aktif/Nonaktif & Hapus */}
+                                    <div className="md:col-span-3 flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const copy = rawSocialList.map(item =>
+                                            item.id === soc.id
+                                              ? { ...item, isActive: !item.isActive }
+                                              : item
+                                          );
+                                          syncSocialLinksToSettings(copy);
+                                        }}
+                                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition ${
+                                          soc.isActive
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                                            : 'bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600'
+                                        }`}
+                                      >
+                                        {soc.isActive ? '✓ Aktif' : '✕ Nonaktif'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const copy = rawSocialList.filter(
+                                            item => item.id !== soc.id
+                                          );
+                                          syncSocialLinksToSettings(copy);
+                                        }}
+                                        className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[11px] font-bold cursor-pointer transition"
+                                        title={`Hapus akun ${soc.platform}`}
+                                      >
+                                        Hapus
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Pengaturan SEO Global & Verifikasi Kepemilikan Website (Google Search Console HTML & TXT Record) */}
+                <div id="admin-seo-verification-card" className="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-3">
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold text-[10px] uppercase tracking-wider">
+                        SEO Global & Verifikasi Kepemilikan Website
+                      </span>
+                      <h4 className="font-bold text-slate-900 text-sm mt-1.5">
+                        5. Pengaturan SEO Global, Verifikasi Google Search Console (Meta HTML & TXT Record) & Schema.org
+                      </h4>
+                      <p className="text-[11px] text-slate-600">
+                        Kelola Meta Title/Description Default, Canonical URL, Token Verifikasi Kepemilikan Website (Google Search Console HTML & DNS TXT Record, Bing, Yandex, Meta/Facebook), Geo-Tagging, dan Google Analytics 4.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* A. Verifikasi Kepemilikan Website & Google Search Console TXT */}
+                  <div className="bg-white p-4 rounded-xl border border-emerald-200 space-y-4">
+                    <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>A. Verifikasi Kepemilikan Website (Google Search Console Meta Tag & DNS TXT Record)</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Google Search Console — Token HTML (<code className="text-emerald-700">google-site-verification</code>)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoGoogleVerification || ''}
+                          onChange={e => {
+                            let val = e.target.value.trim();
+                            const m = val.match(/content=["']([^"']+)["']/i);
+                            if (m && m[1]) val = m[1];
+                            setCompanySettings({
+                              ...companySettings,
+                              seoGoogleVerification: val
+                            });
+                          }}
+                          placeholder="Tempel token atau seluruh tag <meta name='google-site-verification' ...>"
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-mono text-xs"
+                        />
+                        <span className="text-[10px] text-slate-500 mt-1 block">
+                          Otomatis dirender sebagai <code>&lt;meta name=&quot;google-site-verification&quot; content=&quot;...&quot;&gt;</code> di <code>&lt;head&gt;</code>.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Google Search Console — TXT Record DNS (<code className="text-emerald-700">google-site-verification=...</code>)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoSearchConsoleTxt || ''}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoSearchConsoleTxt: e.target.value
+                            })
+                          }
+                          placeholder="Contoh: google-site-verification=rXoK92LmN8pQ..."
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-mono text-xs"
+                        />
+                        <span className="text-[10px] text-slate-500 mt-1 block">
+                          Menyimpan nilai TXT verifikasi domain Search Console & otomatis mengekstrak token verifikasi.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Bing Webmaster Tools (<code className="text-blue-700">msvalidate.01</code>)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoBingVerification || ''}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoBingVerification: e.target.value
+                            })
+                          }
+                          placeholder="Kode verifikasi Bing Webmaster..."
+                          className="w-full border border-slate-300 rounded-xl p-2 bg-white text-slate-900 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Meta / Facebook Domain Verification (<code className="text-blue-700">facebook-domain-verification</code>)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoFbDomainVerification || ''}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoFbDomainVerification: e.target.value
+                            })
+                          }
+                          placeholder="Token verifikasi domain Meta Business..."
+                          className="w-full border border-slate-300 rounded-xl p-2 bg-white text-slate-900 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Yandex Webmaster (<code className="text-amber-700">yandex-verification</code>)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoYandexVerification || ''}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoYandexVerification: e.target.value
+                            })
+                          }
+                          placeholder="Kode verifikasi Yandex..."
+                          className="w-full border border-slate-300 rounded-xl p-2 bg-white text-slate-900 font-mono text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Google Analytics 4 Measurement ID (<code className="text-emerald-700">G-XXXXXXXXXX</code>)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoGoogleAnalyticsId || ''}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoGoogleAnalyticsId: e.target.value
+                            })
+                          }
+                          placeholder="Contoh: G-12345ABCDE"
+                          className="w-full border border-slate-300 rounded-xl p-2 bg-white text-slate-900 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* B. Meta Title, Meta Description, Keywords & Canonical URL */}
+                  <div className="bg-white p-4 rounded-xl border border-emerald-200 space-y-3">
+                    <div className="font-bold text-slate-900 text-xs">
+                      B. Meta Tag Global, Robots Directive, Canonical URL & Geo-Tagging
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Default Meta Title Website
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            companySettings.seoDefaultMetaTitle ||
+                            DEFAULT_COMPANY_SETTINGS.seoDefaultMetaTitle ||
+                            ''
+                          }
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoDefaultMetaTitle: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Canonical Base URL Utama
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoCanonicalBase || 'https://www.kgs.net.id'}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoCanonicalBase: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-mono"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Default Meta Description
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={
+                            companySettings.seoDefaultMetaDesc ||
+                            DEFAULT_COMPANY_SETTINGS.seoDefaultMetaDesc ||
+                            ''
+                          }
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoDefaultMetaDesc: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Meta Keywords (Pisahkan dengan koma)
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            companySettings.seoMetaKeywords ||
+                            DEFAULT_COMPANY_SETTINGS.seoMetaKeywords ||
+                            ''
+                          }
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoMetaKeywords: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Robots Meta Directive
+                        </label>
+                        <select
+                          value={companySettings.seoRobots || 'index, follow'}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoRobots: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900"
+                        >
+                          <option value="index, follow">index, follow (Direkomendasikan Produksi)</option>
+                          <option value="noindex, follow">noindex, follow</option>
+                          <option value="index, nofollow">index, nofollow</option>
+                          <option value="noindex, nofollow">noindex, nofollow (Mode Staging)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">
+                          Geo-Position Koordinat Kantor (ICBM / Geo.Position)
+                        </label>
+                        <input
+                          type="text"
+                          value={companySettings.seoGeoPosition || '-2.9718;104.7644'}
+                          onChange={e =>
+                            setCompanySettings({
+                              ...companySettings,
+                              seoGeoPosition: e.target.value
+                            })
+                          }
+                          className="w-full border border-slate-300 rounded-xl p-2.5 bg-white text-slate-900 font-mono"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1776,7 +2732,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
                   >
                     <Check className="w-4 h-4" />
-                    <span>Simpan Pengaturan, Logo, Maps & Seluruh Footer</span>
+                    <span>Simpan Pengaturan, Logo, Maps, SEO & Seluruh Footer</span>
                   </button>
                 </div>
               </form>
@@ -1800,6 +2756,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onUpdateThemeConfig={updated => onUpdateThemeConfig?.(updated)}
               sliderConfig={sliderConfig}
               onUpdateSliderConfig={updated => onUpdateSliderConfig?.(updated)}
+              slideshowCategories={slideshowCategories}
+              onOpenSlideshowTab={() => handleSelectTab('slideshow')}
+              companySettings={companySettings}
+              onUpdateCompanySettings={updated => {
+                setCompanySettings(updated);
+                localStorage.setItem('kgs_company_settings', JSON.stringify(updated));
+                onUpdateCompanySettings?.(updated);
+              }}
               onOpenLiveEditor={() => {
                 if (onOpenLiveEditor) onOpenLiveEditor();
                 else onExitAdmin();
@@ -1832,6 +2796,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onNavigateAdminTab={tab => handleSelectTab(tab as any)}
             />
           )}
+
+          {/* Tab Promo Manager */}
+          {activeTab === 'promos' && (
+            <AdminPromos
+              promos={promos}
+              onUpdatePromos={items => onUpdatePromos?.(items)}
+            />
+          )}
+
+          {/* Tab Kemitraan Manager */}
+          {activeTab === 'partners_admin' && (
+            <AdminKemitraan
+              partners={partners}
+              onUpdatePartners={items => onUpdatePartners?.(items)}
+              certifications={certifications}
+              onUpdateCertifications={items => onUpdateCertifications?.(items)}
+            />
+          )}
+
+          {/* Tab Testimoni Manager */}
+          {activeTab === 'testimonials' && (
+            <AdminTestimonials
+              testimonials={testimonials}
+              onUpdateTestimonials={items => onUpdateTestimonials?.(items)}
+            />
+          )}
+
+          {/* Modal Pilih Logo dari Media & Upload Gambar */}
+          <MediaLibraryPickerModal
+            isOpen={logoMediaPickerTarget !== null}
+            onClose={() => setLogoMediaPickerTarget(null)}
+            slideshowCategories={slideshowCategories}
+            sliderConfig={sliderConfig}
+            projects={projects}
+            companyLogo={logoPreview}
+            title="Pilih Gambar Logo dari Media & Upload Gambar"
+            onSelect={item => {
+              if (logoMediaPickerTarget === 'header') {
+                setLogoPreview(item.url);
+              } else if (logoMediaPickerTarget === 'footer') {
+                setCompanySettings({
+                  ...companySettings,
+                  footerLogo: item.url
+                });
+              }
+            }}
+          />
         </main>
       </div>
     </div>

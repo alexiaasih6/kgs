@@ -2,6 +2,8 @@
 $admin_page_title = 'Kelola Paket Harga & Solusi B2B';
 require_once __DIR__ . '/layout-header.php';
 
+ensure_pricing_packages_table($pdo);
+
 $msg = '';
 $error = '';
 $edit_id = (int)($_GET['edit_id'] ?? 0);
@@ -19,14 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'add' || $action === 'edit') {
         $id            = (int)($_POST['id'] ?? 0);
-        $code_label    = trim($_POST['code_label'] ?? 'ISP');
-        $name          = trim($_POST['name'] ?? '');
-        $target_sector = trim($_POST['target_sector'] ?? '');
-        $subtitle      = trim($_POST['subtitle'] ?? '');
-        $price_label   = trim($_POST['price_label'] ?? '');
-        $sla_badge     = trim($_POST['sla_badge'] ?? '');
-        $features      = trim($_POST['features'] ?? '');
-        $badge_text    = trim($_POST['badge_text'] ?? '');
+        $code_label    = clean_plain_text(strip_tags($_POST['code_label'] ?? 'ISP'), 30);
+        $name          = clean_plain_text(strip_tags($_POST['name'] ?? ''), 150);
+        $target_sector = clean_plain_text(strip_tags($_POST['target_sector'] ?? ''), 120);
+        $subtitle      = clean_plain_text(strip_tags($_POST['subtitle'] ?? ''), 255);
+        $price_label   = clean_plain_text(strip_tags($_POST['price_label'] ?? ''), 120);
+        $sla_badge     = clean_plain_text(strip_tags($_POST['sla_badge'] ?? ''), 150);
+        $features      = clean_plain_text(strip_tags($_POST['features'] ?? ''), 4000);
+        $badge_text    = clean_plain_text(strip_tags($_POST['badge_text'] ?? ''), 100);
         $is_featured   = isset($_POST['is_featured']) ? 1 : 0;
         $is_active     = isset($_POST['is_active']) ? 1 : 0;
         $sort_order    = (int)($_POST['sort_order'] ?? 0);
@@ -35,13 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Nama paket dan daftar fitur utama wajib diisi.';
         } else {
             if ($action === 'add') {
-                $stmt = $pdo->prepare("INSERT INTO pricing_packages (code_label, name, target_sector, subtitle, price_label, sla_badge, features, badge_text, is_featured, is_active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$code_label, $name, $target_sector, $subtitle, $price_label, $sla_badge, $features, $badge_text, $is_featured, $is_active, $sort_order]);
+                $stmt = $pdo->prepare("INSERT INTO pricing_packages (code_label, name, target_sector, tagline, subtitle, price_label, period, sla_badge, features, badge_text, is_featured, is_active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$code_label, $name, $target_sector, $subtitle, $subtitle, $price_label, $sla_badge, $sla_badge, $features, $badge_text, $is_featured, $is_active, $sort_order]);
+                invalidate_live_preview_json('pricing_packages');
                 log_audit($pdo, 'Tambah Paket Harga', "Menambahkan paket harga: $name");
                 $msg = 'Paket harga B2B baru berhasil ditambahkan!';
             } else {
-                $stmt = $pdo->prepare("UPDATE pricing_packages SET code_label = ?, name = ?, target_sector = ?, subtitle = ?, price_label = ?, sla_badge = ?, features = ?, badge_text = ?, is_featured = ?, is_active = ?, sort_order = ? WHERE id = ?");
-                $stmt->execute([$code_label, $name, $target_sector, $subtitle, $price_label, $sla_badge, $features, $badge_text, $is_featured, $is_active, $sort_order, $id]);
+                $stmt = $pdo->prepare("UPDATE pricing_packages SET code_label = ?, name = ?, target_sector = ?, tagline = ?, subtitle = ?, price_label = ?, period = ?, sla_badge = ?, features = ?, badge_text = ?, is_featured = ?, is_active = ?, sort_order = ? WHERE id = ?");
+                $stmt->execute([$code_label, $name, $target_sector, $subtitle, $subtitle, $price_label, $sla_badge, $sla_badge, $features, $badge_text, $is_featured, $is_active, $sort_order, $id]);
+                invalidate_live_preview_json('pricing_packages');
                 log_audit($pdo, 'Edit Paket Harga', "Memperbarui paket harga ID $id: $name");
                 $msg = 'Paket harga B2B berhasil diperbarui!';
                 $edit_data = null;
@@ -53,13 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $stmt = $pdo->prepare("DELETE FROM pricing_packages WHERE id = ?");
             $stmt->execute([$id]);
+            invalidate_live_preview_json('pricing_packages');
             log_audit($pdo, 'Hapus Paket Harga', "Menghapus paket harga ID: $id");
             $msg = 'Paket harga berhasil dihapus.';
         }
     }
 }
 
-$packages = $pdo->query("SELECT * FROM pricing_packages ORDER BY sort_order ASC, id ASC")->fetchAll();
+$packages = get_pricing_packages($pdo, false);
 ?>
 
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

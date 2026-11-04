@@ -862,12 +862,15 @@ export const AdminNavigation: React.FC<AdminNavigationProps> = ({
                 </span>
                 {[
                   { label: 'Beranda', url: 'index.php' },
+                  { label: 'Produk & Layanan', url: 'layanan.php' },
+                  { label: 'Promo', url: 'promo.php' },
+                  { label: 'Client / Pelanggan', url: 'klien.php' },
+                  { label: 'Kemitraan', url: 'kemitraan.php' },
+                  { label: 'Testimoni', url: 'testimoni.php' },
+                  { label: 'Hubungi Kami', url: 'kontak.php' },
                   { label: 'Tentang Kami', url: 'tentang.php' },
-                  { label: 'Layanan', url: 'layanan.php' },
                   { label: 'Harga', url: 'harga.php' },
                   { label: 'FAQ', url: 'faq.php' },
-                  { label: 'Portofolio', url: 'portofolio.php' },
-                  { label: 'Kontak', url: 'kontak.php' },
                   { label: 'Artikel Edukasi', url: 'blog.php' },
                   { label: 'Kebijakan Privasi', url: 'kebijakan-privasi.php' }
                 ].map(q => (

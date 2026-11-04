@@ -45,15 +45,60 @@ try {
         exit;
     }
 
-    // 2. Update Pengaturan Identitas / Statistik / Teks (`site_settings`)
+    // 2. Update Pengaturan Identitas / Statistik / Teks (`site_settings`) — hanya key yang terdaftar pada allowlist
     if ($type === 'site_setting' || $type === 'setting') {
         $key   = trim($_POST['key'] ?? ($_POST['key_name'] ?? ''));
         $value = clean_plain_text(strip_tags($_POST['value'] ?? ''), 2000);
-        if (empty($key) || !preg_match('/^[a-zA-Z0-9_]{2,60}$/', $key)) {
-            throw new Exception('Key pengaturan tidak valid.');
+
+        $allowed_setting_keys = [
+            'company_name', 'tagline', 'short_name', 'company_profile', 'vision', 'mission', 'culture', 'commitment',
+            'address_palembang', 'phone_palembang', 'phone_hunting', 'whatsapp', 'email', 'email_general',
+            'operational_hours', 'operating_hours', 'website_corporate', 'website_isp',
+            'topbar_badge', 'topbar_text', 'hero_badge', 'hero_cta_primary', 'hero_cta_secondary', 'hero_cta_tertiary',
+            'hero_hl_1', 'hero_hl_2', 'hero_hl_3', 'hero_hl_4',
+            'stat_1_value', 'stat_1_label', 'stat_2_value', 'stat_2_label',
+            'stat_3_value', 'stat_3_label', 'stat_4_value', 'stat_4_label',
+            'noc_status_label', 'noc_card_title', 'noc_coverage_text',
+            'noc_metric_1_label', 'noc_metric_1_val', 'noc_metric_2_label', 'noc_metric_2_val',
+            'noc_metric_3_label', 'noc_metric_3_val', 'noc_metric_4_label', 'noc_metric_4_val',
+            'about_vision_title', 'about_culture_title', 'about_commitment_title',
+            'about_timeline_heading', 'about_timeline_sub', 'about_cert_heading', 'about_partner_heading',
+            'pricing_banner_kicker', 'pricing_banner_title', 'pricing_banner_desc', 'pricing_banner_cta',
+            'faq_support_title', 'faq_support_desc', 'faq_cta_wa', 'faq_cta_form',
+            'footer_brand_label', 'footer_description', 'footer_contact_heading', 'footer_address_label',
+            'footer_nav_heading', 'footer_quick_heading', 'footer_cert_heading', 'footer_cert_badges',
+            'footer_cert_card_title', 'footer_cert_card_status', 'copyright_text',
+            'social_facebook', 'social_instagram', 'social_linkedin', 'social_youtube', 'social_tiktok', 'social_whatsapp'
+        ];
+
+        if (empty($key) || !in_array($key, $allowed_setting_keys, true)) {
+            throw new Exception('Key pengaturan tidak diizinkan untuk diubah melalui Live Edit.');
+        }
+
+        if (strpos($key, 'social_') === 0) {
+            $value = sanitize_nav_url($value);
         }
 
         save_setting($pdo, $key, $value, 'live_edit');
+
+        if (strpos($key, 'social_') === 0) {
+            $raw_soc_json = get_setting($pdo, 'social_links_json', '');
+            if ($raw_soc_json !== '') {
+                $decoded_soc = json_decode($raw_soc_json, true);
+                if (is_array($decoded_soc)) {
+                    $target_plat = str_replace('social_', '', $key);
+                    foreach ($decoded_soc as &$s_row) {
+                        $p_name = strtolower(trim((string)($s_row['platform'] ?? ($s_row['name'] ?? ''))));
+                        if ($p_name === $target_plat) {
+                            $s_row['url'] = $value;
+                        }
+                    }
+                    unset($s_row);
+                    save_setting($pdo, 'social_links_json', json_encode($decoded_soc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'social');
+                }
+            }
+        }
+
         mark_db_modified($pdo);
 
         log_audit($pdo, 'Live Edit Pengaturan', "Mengubah pengaturan {$key} langsung dari website");

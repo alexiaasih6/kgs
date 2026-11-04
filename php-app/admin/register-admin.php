@@ -3,11 +3,12 @@ require_once __DIR__ . '/../includes/csrf.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 
-// Hanya diizinkan jika belum ada user sama sekali di database
+// Hanya diizinkan jika belum ada user sama sekali di database (Fail-Closed jika terjadi error DB)
+$user_count = 1;
 try {
     $user_count = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
 } catch (Exception $e) {
-    $user_count = 0;
+    $user_count = 1;
 }
 
 if ($user_count > 0) {
@@ -19,11 +20,11 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
 
-    $name = trim($_POST['name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $password_confirm = $_POST['password_confirm'] ?? '';
+    $name = clean_plain_text($_POST['name'] ?? '', 120);
+    $email = trim((string)($_POST['email'] ?? ''));
+    $username = trim((string)($_POST['username'] ?? ''));
+    $password = (string)($_POST['password'] ?? '');
+    $password_confirm = (string)($_POST['password_confirm'] ?? '');
 
     $weak_passwords = ['password', 'password123', 'admin123', '12345678', '123456789', 'qwerty123', 'superadmin', 'kgs12345'];
 
@@ -42,15 +43,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($password !== $password_confirm) {
         $error = 'Konfirmasi kata sandi tidak cocok.';
     } else {
-        $hashed_password = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-        
-        $stmt = $pdo->prepare("INSERT INTO users (username, password, name, email, role, status) VALUES (?, ?, ?, ?, 'superadmin', 'active')");
-        $stmt->execute([$username, $hashed_password, $name, $email]);
+        try {
+            $pdo->beginTransaction();
+            $current_count = (int)$pdo->query("SELECT COUNT(*) FROM users FOR UPDATE")->fetchColumn();
+            if ($current_count > 0) {
+                $pdo->rollBack();
+                header("Location: login.php");
+                exit;
+            }
 
-        log_audit($pdo, 'ADMIN_INITIALIZED', "Super Administrator $username berhasil diinisialisasi.");
+            $hashed_password = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, name, email, role, status) VALUES (?, ?, ?, ?, 'superadmin', 'active')");
+            $stmt->execute([$username, $hashed_password, $name, $email]);
+            $pdo->commit();
 
-        header("Location: login.php?msg=registered");
-        exit;
+            log_audit($pdo, 'ADMIN_INITIALIZED', "Super Administrator $username berhasil diinisialisasi.");
+
+            header("Location: login.php?msg=registered");
+            exit;
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $error = 'Gagal menginisialisasi akun administrator.';
+        }
     }
 }
 

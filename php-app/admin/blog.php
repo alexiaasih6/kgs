@@ -3,17 +3,61 @@ $admin_page_title = 'Kelola Berita & Artikel';
 require_once __DIR__ . '/layout-header.php';
 
 $msg = $_GET['msg'] ?? '';
+$cat_error = '';
 
-// Hapus artikel jika ada permintaan POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+// Proses POST: Hapus Artikel atau CRUD Kategori Blog (`blog_categories`)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     verify_csrf();
-    $id = (int)($_POST['id'] ?? 0);
-    if ($id > 0) {
-        $stmt = $pdo->prepare("DELETE FROM posts WHERE id = ?");
-        $stmt->execute([$id]);
-        log_audit($pdo, 'Hapus Artikel', "Menghapus artikel ID: $id");
-        header("Location: blog.php?msg=deleted");
-        exit;
+    $action = (string)$_POST['action'];
+
+    if ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $stmt = $pdo->prepare("DELETE FROM posts WHERE id = ?");
+            $stmt->execute([$id]);
+            invalidate_live_preview_json('posts');
+            log_audit($pdo, 'Hapus Artikel', "Menghapus artikel ID: $id");
+            header("Location: blog.php?msg=deleted");
+            exit;
+        }
+    } elseif ($action === 'add_category') {
+        $cat_name = clean_plain_text((string)($_POST['name'] ?? ''), 100);
+        $cat_slug = slugify($cat_name);
+        if ($cat_name === '') {
+            $cat_error = 'Nama kategori artikel wajib diisi.';
+        } else {
+            $stmt_chk = $pdo->prepare("SELECT id FROM blog_categories WHERE slug = ? LIMIT 1");
+            $stmt_chk->execute([$cat_slug]);
+            if ($stmt_chk->fetch()) {
+                $cat_slug .= '-' . time();
+            }
+            $pdo->prepare("INSERT INTO blog_categories (name, slug) VALUES (?, ?)")->execute([$cat_name, $cat_slug]);
+            log_audit($pdo, 'Tambah Kategori Artikel', "Menambahkan kategori artikel: $cat_name");
+            $msg = 'cat_added';
+        }
+    } elseif ($action === 'edit_category') {
+        $cat_id   = (int)($_POST['id'] ?? 0);
+        $cat_name = clean_plain_text((string)($_POST['name'] ?? ''), 100);
+        $cat_slug = slugify($cat_name);
+        if ($cat_id > 0 && $cat_name !== '') {
+            $pdo->prepare("UPDATE blog_categories SET name = ?, slug = ? WHERE id = ?")->execute([$cat_name, $cat_slug, $cat_id]);
+            log_audit($pdo, 'Edit Kategori Artikel', "Memperbarui kategori artikel ID $cat_id: $cat_name");
+            $msg = 'cat_updated';
+        }
+    } elseif ($action === 'delete_category') {
+        $cat_id = (int)($_POST['id'] ?? 0);
+        if ($cat_id > 0) {
+            $stmt_cnt = $pdo->prepare("SELECT COUNT(*) FROM posts WHERE category_id = ?");
+            $stmt_cnt->execute([$cat_id]);
+            $post_cnt = (int)$stmt_cnt->fetchColumn();
+            if ($post_cnt > 0) {
+                $cat_error = "Kategori tidak dapat dihapus karena masih digunakan oleh $post_cnt artikel. Pindahkan kategori artikel tersebut terlebih dahulu.";
+            } else {
+                $pdo->prepare("DELETE FROM blog_categories WHERE id = ?")->execute([$cat_id]);
+                log_audit($pdo, 'Hapus Kategori Artikel', "Menghapus kategori artikel ID: $cat_id");
+                $msg = 'cat_deleted';
+            }
+        }
     }
 }
 
@@ -41,7 +85,7 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $posts = $stmt->fetchAll();
 
-$categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fetchAll();
+$categories = $pdo->query("SELECT c.*, (SELECT COUNT(*) FROM posts p WHERE p.category_id = c.id) AS post_count FROM blog_categories c ORDER BY c.name ASC")->fetchAll();
 ?>
 
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -66,17 +110,27 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
 <div class="bg-amber-100 border border-amber-300 text-amber-800 text-xs p-3.5 rounded-xl font-medium">
     Artikel berhasil dihapus dari sistem.
 </div>
+<?php elseif ($msg === 'cat_added' || $msg === 'cat_updated' || $msg === 'cat_deleted'): ?>
+<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs p-3.5 rounded-xl font-medium">
+    Data kategori artikel berhasil diperbarui.
+</div>
 <?php endif; ?>
 
-<!-- Search and Filter Bar -->
-<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+<?php if ($cat_error !== ''): ?>
+<div class="bg-rose-100 border border-rose-300 text-rose-800 text-xs p-3.5 rounded-xl font-medium">
+    <?= e($cat_error) ?>
+</div>
+<?php endif; ?>
+
+<!-- Search and Filter Bar + Kelola Kategori Blog -->
+<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
     <form method="GET" class="flex flex-col sm:flex-row gap-3">
         <input type="text" name="search" value="<?= e($search) ?>" placeholder="Cari judul artikel, ringkasan, atau label topik..." class="flex-1 text-xs px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
         <select name="category" class="text-xs px-3 py-2.5 border border-slate-300 rounded-lg bg-white">
             <option value="0">Semua Kategori</option>
             <?php foreach ($categories as $cat): ?>
                 <option value="<?= (int)$cat['id'] ?>" <?= $category_id === (int)$cat['id'] ? 'selected' : '' ?>>
-                    <?= e($cat['name']) ?>
+                    <?= e($cat['name']) ?> (<?= (int)($cat['post_count'] ?? 0) ?>)
                 </option>
             <?php endforeach; ?>
         </select>
@@ -87,6 +141,43 @@ $categories = $pdo->query("SELECT * FROM blog_categories ORDER BY name ASC")->fe
             <a href="blog.php" class="px-3 py-2 border border-slate-300 rounded-lg text-xs text-slate-500 hover:bg-slate-50 flex items-center justify-center">Reset</a>
         <?php endif; ?>
     </form>
+
+    <details class="border-t border-slate-100 pt-2.5 text-xs">
+        <summary class="font-bold text-slate-700 cursor-pointer hover:text-blue-700 select-none">
+            🗂️ Kelola Kategori Artikel Blog (<?= count($categories) ?> Kategori)
+        </summary>
+        <div class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <form method="POST" class="space-y-2">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="add_category">
+                <label class="block font-bold text-slate-700 text-[11px]">Tambah Kategori Artikel Baru</label>
+                <div class="flex gap-2">
+                    <input type="text" name="name" required placeholder="Nama Kategori..." class="flex-1 border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-xs">
+                    <button type="submit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer">+ Tambah</button>
+                </div>
+            </form>
+            <div class="md:col-span-2 space-y-1.5 max-h-44 overflow-y-auto">
+                <?php foreach ($categories as $cat): ?>
+                <div class="flex items-center justify-between gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                    <form method="POST" class="flex items-center gap-2 flex-1">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="edit_category">
+                        <input type="hidden" name="id" value="<?= (int)$cat['id'] ?>">
+                        <input type="text" name="name" value="<?= e($cat['name']) ?>" required class="flex-1 border border-slate-200 rounded px-2 py-1 text-xs font-semibold">
+                        <span class="text-[10px] text-slate-400 font-mono"><?= (int)($cat['post_count'] ?? 0) ?> artikel</span>
+                        <button type="submit" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded text-[10px] font-bold cursor-pointer">Simpan</button>
+                    </form>
+                    <form method="POST" onsubmit="return confirm('Hapus kategori artikel ini?');" class="inline">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="delete_category">
+                        <input type="hidden" name="id" value="<?= (int)$cat['id'] ?>">
+                        <button type="submit" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded text-[10px] font-bold cursor-pointer">Hapus</button>
+                    </form>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </details>
 </div>
 
 <!-- Table of Articles -->

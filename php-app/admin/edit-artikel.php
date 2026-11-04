@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id
             ]);
 
+            invalidate_live_preview_json('posts');
             log_audit($pdo, 'Edit Artikel', "Memperbarui artikel ID $id: $title");
             header("Location: blog.php?msg=updated");
             exit;

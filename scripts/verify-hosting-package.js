@@ -12,6 +12,8 @@ const requiredRootFiles = [
   'tentang.php',
   'layanan.php',
   'detail-layanan.php',
+  'slideshow.php',
+  'slideshow-detail.php',
   'harga.php',
   'faq.php',
   'portofolio.php',
@@ -52,6 +54,7 @@ const requiredRootFiles = [
   'admin/register-admin.php',
   'admin/logout.php',
   'admin/pengaturan.php',
+  'admin/slideshow.php',
   'admin/layanan.php',
   'admin/tambah-layanan.php',
   'admin/edit-layanan.php',
@@ -160,7 +163,10 @@ const requiredTables = [
   'inquiries',
   'lead_notes',
   'media',
-  'partners'
+  'partners',
+  'slideshow_categories',
+  'slideshow_images',
+  'project_images'
 ];
 for (const tbl of requiredTables) {
   const regex = new RegExp(`CREATE TABLE IF NOT EXISTS \`${tbl}\``);

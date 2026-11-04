@@ -33,221 +33,225 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $active_tab = $redirect_tab;
     }
 
-    if ($action === 'add') {
-        $title = clean_plain_text((string)($_POST['title'] ?? ''), 100);
-        $raw_url = trim($_POST['url'] ?? '');
-        $location = ($_POST['location'] ?? 'header') === 'footer' ? 'footer' : 'header';
-        $sort_order = (int)($_POST['sort_order'] ?? 1);
-        $target = ($_POST['target'] ?? '_self') === '_blank' ? '_blank' : '_self';
-        $is_active = isset($_POST['is_active']) ? ((int)$_POST['is_active'] === 1 ? 1 : 0) : 1;
+    try {
+        if ($action === 'add') {
+            $title = clean_plain_text((string)($_POST['title'] ?? ''), 100);
+            $raw_url = trim($_POST['url'] ?? '');
+            $location = ($_POST['location'] ?? 'header') === 'footer' ? 'footer' : 'header';
+            $sort_order = (int)($_POST['sort_order'] ?? 1);
+            $target = ($_POST['target'] ?? '_self') === '_blank' ? '_blank' : '_self';
+            $is_active = isset($_POST['is_active']) ? ((int)$_POST['is_active'] === 1 ? 1 : 0) : 1;
 
-        // Data isi halaman (jika diisi saat membuat menu baru)
-        $page_title_inp = trim($_POST['page_title'] ?? '') ?: $title;
-        $page_slug_inp = create_slug(trim($_POST['page_slug'] ?? '') ?: $title);
-        $page_summary_inp = trim($_POST['page_summary'] ?? '');
-        $page_content_inp = trim($_POST['page_content'] ?? '');
+            // Data isi halaman (jika diisi saat membuat menu baru)
+            $page_title_inp = trim($_POST['page_title'] ?? '') ?: $title;
+            $page_slug_inp = create_slug(trim($_POST['page_slug'] ?? '') ?: $title);
+            $page_summary_inp = trim($_POST['page_summary'] ?? '');
+            $page_content_inp = trim($_POST['page_content'] ?? '');
 
-        if ($raw_url === '' && $page_slug_inp !== '') {
-            $raw_url = resolve_page_slug_to_url($page_slug_inp);
-        }
-        $url = sanitize_nav_url($raw_url);
-        $resolved_slug = (string)resolve_url_to_page_slug($url);
-
-        if ($title === '' || $raw_url === '') {
-            $error_msg = 'Label Menu dan Target URL / Slug wajib diisi.';
-        } elseif ($url === '#' && strtolower($raw_url) !== '#') {
-            $error_msg = 'Format Target URL tidak diizinkan demi keamanan.';
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO menus (title, url, page_slug, menu_location, sort_order, target, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$title, $url, $resolved_slug ?: null, $location, $sort_order, $target, $is_active]);
-            if ($resolved_slug !== '' && ($page_content_inp !== '' || $page_summary_inp !== '' || !isset($pages_by_slug[$resolved_slug]))) {
-                $safe_title_inp = clean_plain_text(strip_tags($page_title_inp), 200);
-                $safe_summary_inp = clean_plain_text(strip_tags($page_summary_inp), 1000);
-                $final_content = $page_content_inp !== '' ? sanitize_rich_html($page_content_inp) : ('<h2>' . e($safe_title_inp) . '</h2><p>' . e($safe_summary_inp ?: "Informasi lengkap mengenai $safe_title_inp PT. Kreatif Global Solusindo.") . '</p>');
-                $final_summary = $safe_summary_inp !== '' ? $safe_summary_inp : "Informasi resmi mengenai $safe_title_inp PT. Kreatif Global Solusindo.";
-                $stmt_pg = $pdo->prepare("INSERT INTO pages (title, slug, summary, content, meta_title, meta_description, is_published, sort_order) VALUES (?, ?, ?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), content = VALUES(content), updated_at = NOW()");
-                $stmt_pg->execute([
-                    $safe_title_inp,
-                    $resolved_slug,
-                    $final_summary,
-                    $final_content,
-                    $safe_title_inp . ' - PT. KGS',
-                    $final_summary,
-                    count($pages_by_slug) + 1
-                ]);
-                invalidate_live_preview_json('pages', $resolved_slug);
+            if ($raw_url === '' && $page_slug_inp !== '') {
+                $raw_url = resolve_page_slug_to_url($page_slug_inp);
             }
+            $url = sanitize_nav_url($raw_url);
+            $resolved_slug = (string)resolve_url_to_page_slug($url);
 
-            invalidate_live_preview_json('menus');
-            log_audit($pdo, 'Tambah Menu & Halaman', "Menambahkan menu [$location]: $title -> $url beserta konten halaman");
-            $msg = "Menu \"$title\" dan isi konten halamannya berhasil ditambahkan ke Navigasi " . ($location === 'header' ? 'Header (Atas)' : 'Footer (Bawah)') . ".";
-        }
-    } elseif ($action === 'edit_single') {
-        $id = (int)($_POST['id'] ?? 0);
-        $title = clean_plain_text((string)($_POST['title'] ?? ''), 100);
-        $raw_url = trim($_POST['url'] ?? '');
-        $url = sanitize_nav_url($raw_url);
-        $location = ($_POST['location'] ?? 'header') === 'footer' ? 'footer' : 'header';
-        $sort_order = (int)($_POST['sort_order'] ?? 1);
-        $target = ($_POST['target'] ?? '_self') === '_blank' ? '_blank' : '_self';
-        $is_active = (int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0;
+            if ($title === '' || $raw_url === '') {
+                $error_msg = 'Label Menu dan Target URL / Slug wajib diisi.';
+            } elseif ($url === '#' && strtolower($raw_url) !== '#') {
+                $error_msg = 'Format Target URL tidak diizinkan demi keamanan.';
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO menus (title, url, page_slug, location, menu_location, sort_order, target, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$title, $url, $resolved_slug ?: null, $location, $location, $sort_order, $target, $is_active]);
+                if ($resolved_slug !== '' && ($page_content_inp !== '' || $page_summary_inp !== '' || !isset($pages_by_slug[$resolved_slug]))) {
+                    $safe_title_inp = clean_plain_text(strip_tags($page_title_inp), 200);
+                    $safe_summary_inp = clean_plain_text(strip_tags($page_summary_inp), 1000);
+                    $final_content = $page_content_inp !== '' ? sanitize_rich_html($page_content_inp) : ('<h2>' . e($safe_title_inp) . '</h2><p>' . e($safe_summary_inp ?: "Informasi lengkap mengenai $safe_title_inp PT. Kreatif Global Solusindo.") . '</p>');
+                    $final_summary = $safe_summary_inp !== '' ? $safe_summary_inp : "Informasi resmi mengenai $safe_title_inp PT. Kreatif Global Solusindo.";
+                    $stmt_pg = $pdo->prepare("INSERT INTO pages (title, slug, summary, content, meta_title, meta_description, is_published, sort_order) VALUES (?, ?, ?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), content = VALUES(content), updated_at = NOW()");
+                    $stmt_pg->execute([
+                        $safe_title_inp,
+                        $resolved_slug,
+                        $final_summary,
+                        $final_content,
+                        $safe_title_inp . ' - PT. KGS',
+                        $final_summary,
+                        count($pages_by_slug) + 1
+                    ]);
+                    invalidate_live_preview_json('pages', $resolved_slug);
+                }
 
-        // Data isi konten halaman yang diedit bersamaan
-        $page_slug = trim($_POST['page_slug'] ?? '');
-        $page_title = trim($_POST['page_title'] ?? '');
-        $page_summary = trim($_POST['page_summary'] ?? '');
-        $page_content = trim($_POST['page_content'] ?? '');
-        $page_meta_title = trim($_POST['page_meta_title'] ?? '');
-        $page_meta_desc = trim($_POST['page_meta_description'] ?? '');
-
-        if ($id <= 0) {
-            $error_msg = 'ID menu tidak valid.';
-        } elseif ($title === '' || $raw_url === '') {
-            $error_msg = 'Label Menu dan Target URL tidak boleh kosong.';
-        } elseif ($url === '#' && strtolower($raw_url) !== '#') {
-            $error_msg = 'Skema URL berbahaya ditolak oleh sistem keamanan.';
-        } else {
-            $target_slug = $page_slug !== '' ? create_slug($page_slug) : (string)resolve_url_to_page_slug($url);
-            $stmt = $pdo->prepare("UPDATE menus SET title = ?, url = ?, page_slug = ?, menu_location = ?, sort_order = ?, target = ?, is_active = ? WHERE id = ?");
-            $stmt->execute([$title, $url, $target_slug ?: null, $location, $sort_order, $target, $is_active, $id]);
-            if ($target_slug !== '' && $page_title !== '' && $page_content !== '') {
-                $safe_pg_title = clean_plain_text(strip_tags($page_title), 200);
-                $safe_pg_sum   = clean_plain_text(strip_tags($page_summary), 1000);
-                $safe_pg_html  = sanitize_rich_html($page_content);
-                $stmt_pg = $pdo->prepare("INSERT INTO pages (title, slug, summary, content, meta_title, meta_description, is_published, sort_order) VALUES (?, ?, ?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), content = VALUES(content), meta_title = VALUES(meta_title), meta_description = VALUES(meta_description), updated_at = NOW()");
-                $stmt_pg->execute([
-                    $safe_pg_title,
-                    $target_slug,
-                    $safe_pg_sum,
-                    $safe_pg_html,
-                    clean_plain_text(strip_tags($page_meta_title), 255) ?: ($safe_pg_title . ' - PT. KGS'),
-                    clean_plain_text(strip_tags($page_meta_desc), 500) ?: $safe_pg_sum,
-                    $sort_order
-                ]);
-                invalidate_live_preview_json('pages', $target_slug);
+                invalidate_live_preview_json('menus');
+                log_audit($pdo, 'Tambah Menu & Halaman', "Menambahkan menu [$location]: $title -> $url beserta konten halaman");
+                $msg = "Menu \"$title\" dan isi konten halamannya berhasil ditambahkan ke Navigasi " . ($location === 'header' ? 'Header (Atas)' : 'Footer (Bawah)') . ".";
             }
+        } elseif ($action === 'edit_single') {
+            $id = (int)($_POST['id'] ?? 0);
+            $title = clean_plain_text((string)($_POST['title'] ?? ''), 100);
+            $raw_url = trim($_POST['url'] ?? '');
+            $url = sanitize_nav_url($raw_url);
+            $location = ($_POST['location'] ?? 'header') === 'footer' ? 'footer' : 'header';
+            $sort_order = (int)($_POST['sort_order'] ?? 1);
+            $target = ($_POST['target'] ?? '_self') === '_blank' ? '_blank' : '_self';
+            $is_active = (int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0;
 
-            invalidate_live_preview_json('menus');
-            log_audit($pdo, 'Edit Menu & Isi Halaman', "Memperbarui menu ID #$id [$location]: $title ($url) serta isi halaman [$target_slug]");
-            $msg = "Perubahan menu \"$title\" dan isi konten halaman website berhasil disimpan!";
-        }
-    } elseif ($action === 'bulk_save') {
-        $items = $_POST['items'] ?? [];
-        if (is_array($items) && count($items) > 0) {
-            $updated_count = 0;
+            // Data isi konten halaman yang diedit bersamaan
+            $page_slug = trim($_POST['page_slug'] ?? '');
+            $page_title = trim($_POST['page_title'] ?? '');
+            $page_summary = trim($_POST['page_summary'] ?? '');
+            $page_content = trim($_POST['page_content'] ?? '');
+            $page_meta_title = trim($_POST['page_meta_title'] ?? '');
+            $page_meta_desc = trim($_POST['page_meta_description'] ?? '');
+
+            if ($id <= 0) {
+                $error_msg = 'ID menu tidak valid.';
+            } elseif ($title === '' || $raw_url === '') {
+                $error_msg = 'Label Menu dan Target URL tidak boleh kosong.';
+            } elseif ($url === '#' && strtolower($raw_url) !== '#') {
+                $error_msg = 'Skema URL berbahaya ditolak oleh sistem keamanan.';
+            } else {
+                $target_slug = $page_slug !== '' ? create_slug($page_slug) : (string)resolve_url_to_page_slug($url);
+                $stmt = $pdo->prepare("UPDATE menus SET title = ?, url = ?, page_slug = ?, location = ?, menu_location = ?, sort_order = ?, target = ?, is_active = ? WHERE id = ?");
+                $stmt->execute([$title, $url, $target_slug ?: null, $location, $location, $sort_order, $target, $is_active, $id]);
+                if ($target_slug !== '' && $page_title !== '' && $page_content !== '') {
+                    $safe_pg_title = clean_plain_text(strip_tags($page_title), 200);
+                    $safe_pg_sum   = clean_plain_text(strip_tags($page_summary), 1000);
+                    $safe_pg_html  = sanitize_rich_html($page_content);
+                    $stmt_pg = $pdo->prepare("INSERT INTO pages (title, slug, summary, content, meta_title, meta_description, is_published, sort_order) VALUES (?, ?, ?, ?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), content = VALUES(content), meta_title = VALUES(meta_title), meta_description = VALUES(meta_description), updated_at = NOW()");
+                    $stmt_pg->execute([
+                        $safe_pg_title,
+                        $target_slug,
+                        $safe_pg_sum,
+                        $safe_pg_html,
+                        clean_plain_text(strip_tags($page_meta_title), 255) ?: ($safe_pg_title . ' - PT. KGS'),
+                        clean_plain_text(strip_tags($page_meta_desc), 500) ?: $safe_pg_sum,
+                        $sort_order
+                    ]);
+                    invalidate_live_preview_json('pages', $target_slug);
+                }
+
+                invalidate_live_preview_json('menus');
+                log_audit($pdo, 'Edit Menu & Isi Halaman', "Memperbarui menu ID #$id [$location]: $title ($url) serta isi halaman [$target_slug]");
+                $msg = "Perubahan menu \"$title\" dan isi konten halaman website berhasil disimpan!";
+            }
+        } elseif ($action === 'bulk_save') {
+            $items = $_POST['items'] ?? [];
+            if (is_array($items) && count($items) > 0) {
+                $updated_count = 0;
+                $pdo->beginTransaction();
+                try {
+                    $stmt = $pdo->prepare("UPDATE menus SET sort_order = ?, title = ?, url = ?, page_slug = ?, target = ?, is_active = ? WHERE id = ?");
+                    foreach ($items as $id_key => $data) {
+                        $menu_id = (int)$id_key;
+                        if ($menu_id <= 0 || !is_array($data)) {
+                            continue;
+                        }
+                        $m_title = clean_plain_text((string)($data['title'] ?? ''), 100);
+                        $m_raw_url = trim((string)($data['url'] ?? ''));
+                        $m_url = sanitize_nav_url($m_raw_url);
+                        $m_slug = resolve_url_to_page_slug($m_url);
+                        $m_sort = (int)($data['sort_order'] ?? 1);
+                        $m_target = (($data['target'] ?? '_self') === '_blank') ? '_blank' : '_self';
+                        $m_active = ((int)($data['is_active'] ?? 0) === 1) ? 1 : 0;
+
+                        if ($m_title !== '' && $m_raw_url !== '') {
+                            $stmt->execute([$m_sort, $m_title, $m_url, $m_slug, $m_target, $m_active, $menu_id]);
+                            $updated_count++;
+                        }
+                    }
+                    $pdo->commit();
+                    invalidate_live_preview_json('menus');
+                    log_audit($pdo, 'Simpan Perubahan Navigasi', "Memperbarui $updated_count item navigasi sekaligus");
+                    $msg = "Berhasil menyimpan perubahan pada $updated_count item navigasi.";
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $error_msg = 'Gagal menyimpan perubahan massal: ' . $e->getMessage();
+                }
+            }
+        } elseif ($action === 'toggle_status') {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0) {
+                $stmt = $pdo->prepare("SELECT title, is_active FROM menus WHERE id = ?");
+                $stmt->execute([$id]);
+                $row = $stmt->fetch();
+                if ($row) {
+                    $new_status = ((int)$row['is_active'] === 1) ? 0 : 1;
+                    $upd = $pdo->prepare("UPDATE menus SET is_active = ? WHERE id = ?");
+                    $upd->execute([$new_status, $id]);
+                    invalidate_live_preview_json('menus');
+                    $status_label = $new_status === 1 ? 'Aktif' : 'Nonaktif';
+                    log_audit($pdo, 'Ubah Status Menu', "Mengubah status menu \"{$row['title']}\" menjadi $status_label");
+                    $msg = "Status menu \"{$row['title']}\" berhasil diubah menjadi $status_label.";
+                }
+            }
+        } elseif ($action === 'move_order') {
+            $id = (int)($_POST['id'] ?? 0);
+            $direction = $_POST['direction'] ?? 'up';
+            if ($id > 0) {
+                $stmt = $pdo->prepare("SELECT id, COALESCE(NULLIF(location, ''), menu_location, 'header') AS location, sort_order FROM menus WHERE id = ?");
+                $stmt->execute([$id]);
+                $current = $stmt->fetch();
+                if ($current) {
+                    $loc = $current['location'];
+                    $cur_order = (int)$current['sort_order'];
+                    if ($direction === 'up') {
+                        $neighbor_stmt = $pdo->prepare("SELECT id, sort_order FROM menus WHERE (location = ? OR menu_location = ?) AND (sort_order < ? OR (sort_order = ? AND id < ?)) ORDER BY sort_order DESC, id DESC LIMIT 1");
+                        $neighbor_stmt->execute([$loc, $loc, $cur_order, $cur_order, $id]);
+                    } else {
+                        $neighbor_stmt = $pdo->prepare("SELECT id, sort_order FROM menus WHERE (location = ? OR menu_location = ?) AND (sort_order > ? OR (sort_order = ? AND id > ?)) ORDER BY sort_order ASC, id ASC LIMIT 1");
+                        $neighbor_stmt->execute([$loc, $loc, $cur_order, $cur_order, $id]);
+                    }
+                    $neighbor = $neighbor_stmt->fetch();
+                    if ($neighbor) {
+                        $n_order = (int)$neighbor['sort_order'];
+                        if ($n_order === $cur_order) {
+                            $n_order = $direction === 'up' ? max(1, $cur_order - 1) : $cur_order + 1;
+                        }
+                        $upd = $pdo->prepare("UPDATE menus SET sort_order = ? WHERE id = ?");
+                        $upd->execute([$n_order, $id]);
+                        $upd->execute([$cur_order, (int)$neighbor['id']]);
+                        invalidate_live_preview_json('menus');
+                        $msg = 'Urutan menu berhasil diperbarui.';
+                    }
+                }
+            }
+        } elseif ($action === 'delete') {
+            $id = (int)($_POST['id'] ?? 0);
+            if ($id > 0) {
+                $stmt = $pdo->prepare("SELECT title, COALESCE(NULLIF(location, ''), menu_location, 'header') AS location FROM menus WHERE id = ?");
+                $stmt->execute([$id]);
+                $row = $stmt->fetch();
+                $del = $pdo->prepare("DELETE FROM menus WHERE id = ?");
+                $del->execute([$id]);
+                invalidate_live_preview_json('menus');
+                $deleted_title = $row['title'] ?? "ID #$id";
+                log_audit($pdo, 'Hapus Menu Navigasi', "Menghapus item menu: $deleted_title");
+                $msg = "Menu \"$deleted_title\" berhasil dihapus.";
+            }
+        } elseif ($action === 'reset_default') {
             $pdo->beginTransaction();
             try {
-                $stmt = $pdo->prepare("UPDATE menus SET sort_order = ?, title = ?, url = ?, page_slug = ?, target = ?, is_active = ? WHERE id = ?");
-                foreach ($items as $id_key => $data) {
-                    $menu_id = (int)$id_key;
-                    if ($menu_id <= 0 || !is_array($data)) {
-                        continue;
-                    }
-                    $m_title = clean_plain_text((string)($data['title'] ?? ''), 100);
-                    $m_raw_url = trim((string)($data['url'] ?? ''));
-                    $m_url = sanitize_nav_url($m_raw_url);
-                    $m_slug = resolve_url_to_page_slug($m_url);
-                    $m_sort = (int)($data['sort_order'] ?? 1);
-                    $m_target = (($data['target'] ?? '_self') === '_blank') ? '_blank' : '_self';
-                    $m_active = ((int)($data['is_active'] ?? 0) === 1) ? 1 : 0;
-
-                    if ($m_title !== '' && $m_raw_url !== '') {
-                        $stmt->execute([$m_sort, $m_title, $m_url, $m_slug, $m_target, $m_active, $menu_id]);
-                        $updated_count++;
-                    }
+                $pdo->exec("DELETE FROM menus");
+                $stmt = $pdo->prepare("INSERT INTO menus (id, title, url, page_slug, location, menu_location, parent_id, sort_order, target, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                foreach (get_default_navigation_menus() as $m) {
+                    $stmt->execute([$m['id'], $m['title'], $m['url'], $m['page_slug'] ?? resolve_url_to_page_slug($m['url']), $m['location'], $m['location'], $m['parent_id'] ?? null, $m['sort_order'], $m['target'], $m['is_active']]);
                 }
                 $pdo->commit();
                 invalidate_live_preview_json('menus');
-                log_audit($pdo, 'Simpan Perubahan Navigasi', "Memperbarui $updated_count item navigasi sekaligus");
-                $msg = "Berhasil menyimpan perubahan pada $updated_count item navigasi.";
+                log_audit($pdo, 'Reset Navigasi Default', 'Mengembalikan seluruh menu Header & Footer ke konfigurasi standar awal');
+                $msg = 'Seluruh navigasi Header (7 menu) dan Footer (5 menu) berhasil dikembalikan ke pengaturan awal.';
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $error_msg = 'Gagal menyimpan perubahan massal: ' . $e->getMessage();
+                $error_msg = 'Gagal mereset navigasi: ' . $e->getMessage();
             }
         }
-    } elseif ($action === 'toggle_status') {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $stmt = $pdo->prepare("SELECT title, is_active FROM menus WHERE id = ?");
-            $stmt->execute([$id]);
-            $row = $stmt->fetch();
-            if ($row) {
-                $new_status = ((int)$row['is_active'] === 1) ? 0 : 1;
-                $upd = $pdo->prepare("UPDATE menus SET is_active = ? WHERE id = ?");
-                $upd->execute([$new_status, $id]);
-                invalidate_live_preview_json('menus');
-                $status_label = $new_status === 1 ? 'Aktif' : 'Nonaktif';
-                log_audit($pdo, 'Ubah Status Menu', "Mengubah status menu \"{$row['title']}\" menjadi $status_label");
-                $msg = "Status menu \"{$row['title']}\" berhasil diubah menjadi $status_label.";
-            }
-        }
-    } elseif ($action === 'move_order') {
-        $id = (int)($_POST['id'] ?? 0);
-        $direction = $_POST['direction'] ?? 'up';
-        if ($id > 0) {
-            $stmt = $pdo->prepare("SELECT id, menu_location AS location, sort_order FROM menus WHERE id = ?");
-            $stmt->execute([$id]);
-            $current = $stmt->fetch();
-            if ($current) {
-                $loc = $current['location'];
-                $cur_order = (int)$current['sort_order'];
-                if ($direction === 'up') {
-                    $neighbor_stmt = $pdo->prepare("SELECT id, sort_order FROM menus WHERE menu_location = ? AND (sort_order < ? OR (sort_order = ? AND id < ?)) ORDER BY sort_order DESC, id DESC LIMIT 1");
-                    $neighbor_stmt->execute([$loc, $cur_order, $cur_order, $id]);
-                } else {
-                    $neighbor_stmt = $pdo->prepare("SELECT id, sort_order FROM menus WHERE menu_location = ? AND (sort_order > ? OR (sort_order = ? AND id > ?)) ORDER BY sort_order ASC, id ASC LIMIT 1");
-                    $neighbor_stmt->execute([$loc, $cur_order, $cur_order, $id]);
-                }
-                $neighbor = $neighbor_stmt->fetch();
-                if ($neighbor) {
-                    $n_order = (int)$neighbor['sort_order'];
-                    if ($n_order === $cur_order) {
-                        $n_order = $direction === 'up' ? max(1, $cur_order - 1) : $cur_order + 1;
-                    }
-                    $upd = $pdo->prepare("UPDATE menus SET sort_order = ? WHERE id = ?");
-                    $upd->execute([$n_order, $id]);
-                    $upd->execute([$cur_order, (int)$neighbor['id']]);
-                    invalidate_live_preview_json('menus');
-                    $msg = 'Urutan menu berhasil diperbarui.';
-                }
-            }
-        }
-    } elseif ($action === 'delete') {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $stmt = $pdo->prepare("SELECT title, menu_location AS location FROM menus WHERE id = ?");
-            $stmt->execute([$id]);
-            $row = $stmt->fetch();
-            $del = $pdo->prepare("DELETE FROM menus WHERE id = ?");
-            $del->execute([$id]);
-            invalidate_live_preview_json('menus');
-            $deleted_title = $row['title'] ?? "ID #$id";
-            log_audit($pdo, 'Hapus Menu Navigasi', "Menghapus item menu: $deleted_title");
-            $msg = "Menu \"$deleted_title\" berhasil dihapus.";
-        }
-    } elseif ($action === 'reset_default') {
-        $pdo->beginTransaction();
-        try {
-            $pdo->exec("DELETE FROM menus");
-            $stmt = $pdo->prepare("INSERT INTO menus (id, title, url, page_slug, menu_location, parent_id, sort_order, target, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            foreach (get_default_navigation_menus() as $m) {
-                $stmt->execute([$m['id'], $m['title'], $m['url'], $m['page_slug'] ?? resolve_url_to_page_slug($m['url']), $m['location'], $m['parent_id'] ?? null, $m['sort_order'], $m['target'], $m['is_active']]);
-            }
-            $pdo->commit();
-            invalidate_live_preview_json('menus');
-            log_audit($pdo, 'Reset Navigasi Default', 'Mengembalikan seluruh menu Header & Footer ke konfigurasi standar awal');
-            $msg = 'Seluruh navigasi Header (7 menu) dan Footer (5 menu) berhasil dikembalikan ke pengaturan awal.';
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            $error_msg = 'Gagal mereset navigasi: ' . $e->getMessage();
-        }
-    }
 
-    // Muat ulang daftar halaman setelah update
-    $pages_by_slug = [];
-    $all_pages = $pdo->query("SELECT * FROM pages ORDER BY sort_order ASC, id ASC")->fetchAll();
-    foreach ($all_pages as $pg) {
-        $pages_by_slug[$pg['slug']] = $pg;
+        // Muat ulang daftar halaman setelah update
+        $pages_by_slug = [];
+        $all_pages = $pdo->query("SELECT * FROM pages ORDER BY sort_order ASC, id ASC")->fetchAll();
+        foreach ($all_pages as $pg) {
+            $pages_by_slug[$pg['slug']] = $pg;
+        }
+    } catch (Exception $e) {
+        $error_msg = 'Gagal memproses perubahan navigasi: ' . $e->getMessage();
     }
 }
 
@@ -256,21 +260,25 @@ $edit_id = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
 $edit_item = null;
 $edit_linked_page = null;
 if ($edit_id > 0) {
-    $stmt = $pdo->prepare("SELECT *, menu_location AS location FROM menus WHERE id = ?");
-    $stmt->execute([$edit_id]);
-    $edit_item = $stmt->fetch();
-    if ($edit_item) {
-        $linked_slug = resolve_url_to_page_slug($edit_item['url']);
-        if ($linked_slug !== '') {
-            $edit_linked_page = get_page_by_slug($pdo, $linked_slug);
+    try {
+        $stmt = $pdo->prepare("SELECT *, COALESCE(NULLIF(location, ''), menu_location, 'header') AS location FROM menus WHERE id = ?");
+        $stmt->execute([$edit_id]);
+        $edit_item = $stmt->fetch();
+        if ($edit_item) {
+            $linked_slug = resolve_url_to_page_slug($edit_item['url']);
+            if ($linked_slug !== '') {
+                $edit_linked_page = get_page_by_slug($pdo, $linked_slug);
+            }
         }
+    } catch (Exception $e) {
+        $edit_item = null;
     }
 }
 
 $header_menus = get_navigation_menus($pdo, 'header', false);
 $footer_menus = get_navigation_menus($pdo, 'footer', false);
-$active_header_count = count(array_filter($header_menus, fn($m) => (int)$m['is_active'] === 1));
-$active_footer_count = count(array_filter($footer_menus, fn($m) => (int)$m['is_active'] === 1));
+$active_header_count = count(array_filter($header_menus, function ($m) { return (int)($m['is_active'] ?? 0) === 1; }));
+$active_footer_count = count(array_filter($footer_menus, function ($m) { return (int)($m['is_active'] ?? 0) === 1; }));
 ?>
 
 <!-- Header Halaman Pengaturan Navigasi & Isi Halaman -->
